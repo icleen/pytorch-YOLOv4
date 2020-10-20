@@ -32,7 +32,8 @@ def main():
     if config.outpath is None:
         config.outpath = osp.join(imgdir, 'labels.txt')
 
-    with open(config.outpath, 'w') as f:
+    writer = 'w' if config.reset else 'a+'
+    with open(config.outpath, writer) as f:
         for inst in labels:
             imgpath = osp.join(imgdir, inst.replace('.json','.npy'))
             f.write(imgpath + ' ')
