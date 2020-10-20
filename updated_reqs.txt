@@ -1,0 +1,6 @@
+pip install --upgrade pip --user
+pip install tqdm --user
+pip install tensorflow
+pip install tensorboardX
+pip install easydict
+pip install pycocotools
