@@ -33,23 +33,8 @@ from cfg import Cfg
 from models import Yolov4
 from tool.darknet2pytorch import Darknet
 
-from tool.tv_reference.utils import collate_fn as val_collate
-
 from loss import Yolo_loss
 from evaluate import evaluate
-
-def collate(batch):
-    images = []
-    bboxes = []
-    for img, box in batch:
-        images.append([img])
-        bboxes.append([box])
-    images = np.concatenate(images, axis=0)
-    images = images.transpose(0, 3, 1, 2)
-    images = torch.from_numpy(images).div(255.0)
-    bboxes = np.concatenate(bboxes, axis=0)
-    bboxes = torch.from_numpy(bboxes)
-    return images, bboxes
 
 
 def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=20, img_scale=0.5):
@@ -61,12 +46,14 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
 
     train_loader = DataLoader(train_dataset,
       batch_size=config.batch // config.subdivisions, shuffle=True,
-      num_workers=8, pin_memory=True, drop_last=True, collate_fn=collate
+      num_workers=8, pin_memory=True, drop_last=True,
+      collate_fn=train_dataset.collate
     )
 
     val_loader = DataLoader(val_dataset,
       batch_size=config.batch // config.subdivisions, shuffle=True,
-      num_workers=8, pin_memory=True, drop_last=True, collate_fn=val_collate
+      num_workers=8, pin_memory=True, drop_last=True,
+      collate_fn=val_dataset.collate
     )
 
     writer = SummaryWriter(log_dir=config.TRAIN_TENSORBOARD_DIR,

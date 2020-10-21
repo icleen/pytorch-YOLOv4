@@ -408,6 +408,20 @@ class Yolo_dataset(Dataset):
         target['iscrowd'] = torch.zeros((num_objs,), dtype=torch.int64)
         return img, target
 
+    def collate(self, batch):
+        if not self.train:
+            return tuple(zip(*batch))
+        images = []
+        bboxes = []
+        for img, box in batch:
+            images.append([img])
+            bboxes.append([box])
+        images = np.concatenate(images, axis=0)
+        images = images.transpose(0, 3, 1, 2)
+        images = torch.from_numpy(images).div(255.0)
+        bboxes = np.concatenate(bboxes, axis=0)
+        bboxes = torch.from_numpy(bboxes)
+        return images, bboxes
 
 def get_image_id(filename:str) -> int:
     """
