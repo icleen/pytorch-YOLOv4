@@ -25,12 +25,12 @@ def main():
     imgdir = config.indir.split('/')
     imgdir = imgdir[:-2] if imgdir[-1] == '' else imgdir[:-1]
     imgdir = '/'.join(imgdir)
-    labels = [f for f in os.listdir(config.indir)
-      if '.json' in f and ('image_' in f or 'video_' in f)]
+    labels = [ f for f in os.listdir(config.indir)
+      if '.json' in f and ('image_' in f or 'video_' in f) ]
     labels.sort()
 
     if config.outpath is None:
-        config.outpath = osp.join(imgdir, 'labels.txt')
+        config.outpath = osp.join(imgdir, 'artic_labels.txt')
 
     writer = 'w' if config.reset else 'a+'
     with open(config.outpath, writer) as f:
@@ -40,7 +40,9 @@ def main():
 
             label = json.load( open(osp.join(labdir, inst)) )
             for obj in label:
-                for pt in obj['points']:
+                pt = obj['points'][-1]
+                f.write(str(pt[0]) + ',' + str(pt[1]) + ',')
+                for pt in obj['points'][:-1]:
                     f.write(str(pt[0]) + ',' + str(pt[1]) + ',')
                 f.write(obj['type'] + ' ')
             f.write('\n')
