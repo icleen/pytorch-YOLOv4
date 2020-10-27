@@ -28,18 +28,18 @@ from torch.nn import functional as F
 from tensorboardX import SummaryWriter
 from easydict import EasyDict as edict
 
-from dataset import Yolo_dataset
+from artic_dataset import Artic_dataset
 from cfg import Cfg
-from models import Yolov4
+from artic_model import ArticYolo
 from tool.darknet2pytorch import Darknet
 
-from loss import Yolo_loss
-from evaluate import evaluate
+from artic_loss import Artic_loss
+from artic_evaluate import evaluate
 
 
 def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=20, img_scale=0.5):
-    train_dataset = Yolo_dataset(config.train_label, config, train=True)
-    val_dataset = Yolo_dataset(config.val_label, config, train=False)
+    train_dataset = Artic_dataset(config.train_label, config, train=True)
+    val_dataset = Artic_dataset(config.val_label, config, train=False)
 
     n_train = len(train_dataset)
     n_val = len(val_dataset)
@@ -110,13 +110,13 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
         )
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, burnin_schedule)
 
-    criterion = Yolo_loss( device=device, n_classes=config.classes,
+    criterion = Artic_loss( device=device, n_classes=config.classes,
       batch=config.batch // config.subdivisions
     )
     # scheduler = ReduceLROnPlateau(optimizer, mode='max', verbose=True, patience=6, min_lr=1e-7)
     # scheduler = CosineAnnealingWarmRestarts(optimizer, 0.001, 1e-6, 20)
 
-    save_prefix = 'Yolov4_epoch'
+    save_prefix = 'articyolo_epoch'
     saved_models = deque()
     model.train()
     for epoch in range(epochs):
@@ -218,44 +218,6 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
     writer.close()
 
 
-def get_args(**kwargs):
-    cfg = kwargs
-    parser = argparse.ArgumentParser(description='Train the Model on images and target masks',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    # parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=2,
-    #                     help='Batch size', dest='batchsize')
-    parser.add_argument('-l', '--learning-rate', metavar='LR', type=float, nargs='?', default=0.001,
-                        help='Learning rate', dest='learning_rate')
-    parser.add_argument('-f', '--load', dest='load', type=str, default=None,
-                        help='Load model from a .pth file')
-    parser.add_argument('-g', '--gpu', metavar='G', type=str, default='-1',
-                        help='GPU', dest='gpu')
-    parser.add_argument('-dir', '--data-dir', type=str, default=None,
-                        help='dataset dir', dest='dataset_dir')
-    parser.add_argument('-pretrained', type=str, default=None, help='pretrained yolov4.conv.137')
-    parser.add_argument('-classes', type=int, default=80, help='dataset classes')
-    parser.add_argument('-train_label_path', dest='train_label', type=str, default='train.txt', help="train label path")
-    parser.add_argument(
-        '-optimizer', type=str, default='adam',
-        help='training optimizer',
-        dest='TRAIN_OPTIMIZER')
-    parser.add_argument(
-        '-iou-type', type=str, default='iou',
-        help='iou type (iou, giou, diou, ciou)',
-        dest='iou_type')
-    parser.add_argument(
-        '-keep-checkpoint-max', type=int, default=10,
-        help='maximum number of checkpoints to keep. If set 0, all checkpoints will be kept',
-        dest='keep_checkpoint_max')
-    args = vars(parser.parse_args())
-
-    # for k in args.keys():
-    #     cfg[k] = args.get(k)
-    cfg.update(args)
-
-    return edict(cfg)
-
-
 def init_logger(log_file=None, log_dir=None, log_level=logging.INFO, mode='w', stdout=True):
     """
     log_dir: 日志文件的文件夹路径
@@ -296,6 +258,45 @@ def _get_date_str():
     return now.strftime('%Y-%m-%d_%H-%M')
 
 
+def get_args(**kwargs):
+    cfg = kwargs
+    parser = argparse.ArgumentParser(
+      description='Train the Model on images and target masks',
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter )
+    # parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=2,
+    #                     help='Batch size', dest='batchsize')
+    parser.add_argument( '-l', '--learning-rate', metavar='LR', type=float,
+      nargs='?', default=0.001, help='Learning rate', dest='learning_rate' )
+    parser.add_argument( '-f', '--load', dest='load', type=str, default=None,
+      help='Load model from a .pth file' )
+    parser.add_argument( '-g', '--gpu', metavar='G', type=str, default='-1',
+      help='GPU', dest='gpu' )
+    parser.add_argument( '-dir', '--data-dir', type=str, default=None,
+      help='dataset dir', dest='dataset_dir' )
+    parser.add_argument( '-pretrained', type=str, default=None,
+      help='pretrained yolov4.conv.137' )
+    parser.add_argument( '-classes', type=int, default=80,
+      help='dataset classes' )
+    parser.add_argument( '-train_label_path', dest='train_label', type=str,
+      default='dataset/artic_train.txt', help="training label path" )
+    parser.add_argument( '-val_label_path', dest='val_label', type=str,
+      default='dataset/artic_valid.txt', help="validation label path" )
+    parser.add_argument( '-optimizer', type=str, default='adam',
+      help='training optimizer', dest='TRAIN_OPTIMIZER' )
+    parser.add_argument( '-iou-type', type=str, default='iou',
+      help='iou type (iou, giou, diou, ciou)', dest='iou_type')
+    parser.add_argument( '-keep-checkpoint-max', type=int, default=10,
+      help='maximum number of checkpoints to keep. If set 0, all checkpoints will be kept',
+      dest='keep_checkpoint_max' )
+    args = vars(parser.parse_args())
+
+    # for k in args.keys():
+    #     cfg[k] = args.get(k)
+    cfg.update(args)
+
+    return edict(cfg)
+
+
 if __name__ == "__main__":
     logging = init_logger(log_dir='log')
     cfg = get_args(**Cfg)
@@ -306,7 +307,7 @@ if __name__ == "__main__":
     if cfg.use_darknet_cfg:
         model = Darknet(cfg.cfgfile)
     else:
-        model = Yolov4(cfg.pretrained, n_classes=cfg.classes)
+        model = ArticYolo(cfg.pretrained, n_classes=cfg.classes)
 
     if torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)
