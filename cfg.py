@@ -21,10 +21,10 @@ Cfg = EasyDict()
 Cfg.use_darknet_cfg = True
 Cfg.cfgfile = os.path.join(_BASE_DIR, 'cfg', 'yolov4.cfg')
 
-Cfg.batch = 64
-Cfg.subdivisions = 16
-Cfg.width = 608
-Cfg.height = 608
+Cfg.batch = 8
+Cfg.subdivisions = 4
+Cfg.width = 480
+Cfg.height = 480
 Cfg.channels = 3
 Cfg.momentum = 0.949
 Cfg.decay = 0.0005
@@ -45,7 +45,7 @@ Cfg.mosaic = 1
 
 Cfg.letter_box = 0
 Cfg.jitter = 0.2
-Cfg.classes = 80
+Cfg.classes = 2
 Cfg.track = 0
 Cfg.w = Cfg.width
 Cfg.h = Cfg.height
@@ -58,8 +58,8 @@ Cfg.train_label = os.path.join(_BASE_DIR, 'data', 'train.txt')
 Cfg.val_label = os.path.join(_BASE_DIR, 'data' ,'val.txt')
 Cfg.TRAIN_OPTIMIZER = 'adam'
 '''
-image_path1 x1,y1,x2,y2,id x1,y1,x2,y2,id x1,y1,x2,y2,id ...
-image_path2 x1,y1,x2,y2,id x1,y1,x2,y2,id x1,y1,x2,y2,id ...
+image_path1 x1,y1,x2,y2,x3,y3,x4,y4,x5,y5,id x1,y1,x2,y2,x3,y3,x4,y4,x5,y5,id ...
+image_path2 x1,y1,x2,y2,x3,y3,x4,y4,x5,y5,id x1,y1,x2,y2,x3,y3,x4,y4,x5,y5,id ...
 ...
 '''
 

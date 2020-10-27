@@ -56,7 +56,7 @@ class Upsample_expand(nn.Module):
 
     def forward(self, x):
         assert (x.data.dim() == 4)
-        
+
         x = x.view(x.size(0), x.size(1), x.size(2), 1, x.size(3), 1).\
             expand(x.size(0), x.size(1), x.size(2), self.stride, x.size(3), self.stride).contiguous().\
             view(x.size(0), x.size(1), x.size(2) * self.stride, x.size(3) * self.stride)
@@ -265,7 +265,8 @@ class Darknet(nn.Module):
                 elif activation == 'mish':
                     model.add_module('mish{0}'.format(conv_id), Mish())
                 else:
-                    print("convalution havn't activate {}".format(activation))
+                    print("convolution havn't activate {}".format(activation))
+                    import pdb; pdb.set_trace()
 
                 prev_filters = filters
                 out_filters.append(prev_filters)

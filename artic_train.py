@@ -130,7 +130,7 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
                 epoch_step += 1
                 images = batch[0]
                 bboxes = batch[1]
-
+                print(images.shape)
                 images = images.to(device=device, dtype=torch.float32)
                 bboxes = bboxes.to(device=device)
 
@@ -170,10 +170,8 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
 
                 pbar.update(images.shape[0])
 
-            if cfg.use_darknet_cfg:
-                eval_model = Darknet(cfg.cfgfile, inference=True)
-            else:
-                eval_model = Yolov4(cfg.pretrained, n_classes=cfg.classes, inference=True)
+            eval_model = ArticYolo(
+              cfg.pretrained, n_classes=cfg.classes, inference=True )
             # eval_model = Yolov4(yolov4conv137weight=None, n_classes=config.classes, inference=True)
             if torch.cuda.device_count() > 1:
                 eval_model.load_state_dict(model.module.state_dict())
@@ -263,8 +261,8 @@ def get_args(**kwargs):
     parser = argparse.ArgumentParser(
       description='Train the Model on images and target masks',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter )
-    # parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=2,
-    #                     help='Batch size', dest='batchsize')
+    parser.add_argument( '-b', '--batch-size', metavar='B', type=int,
+      nargs='?', default=8, help='Batch size', dest='batchsize' )
     parser.add_argument( '-l', '--learning-rate', metavar='LR', type=float,
       nargs='?', default=0.001, help='Learning rate', dest='learning_rate' )
     parser.add_argument( '-f', '--load', dest='load', type=str, default=None,
@@ -275,12 +273,12 @@ def get_args(**kwargs):
       help='dataset dir', dest='dataset_dir' )
     parser.add_argument( '-pretrained', type=str, default=None,
       help='pretrained yolov4.conv.137' )
-    parser.add_argument( '-classes', type=int, default=80,
+    parser.add_argument( '-classes', type=int, default=2,
       help='dataset classes' )
     parser.add_argument( '-train_label_path', dest='train_label', type=str,
-      default='dataset/artic_train.txt', help="training label path" )
+      default='data/artic_train.txt', help="training label path" )
     parser.add_argument( '-val_label_path', dest='val_label', type=str,
-      default='dataset/artic_valid.txt', help="validation label path" )
+      default='data/artic_valid.txt', help="validation label path" )
     parser.add_argument( '-optimizer', type=str, default='adam',
       help='training optimizer', dest='TRAIN_OPTIMIZER' )
     parser.add_argument( '-iou-type', type=str, default='iou',
@@ -300,14 +298,11 @@ def get_args(**kwargs):
 if __name__ == "__main__":
     logging = init_logger(log_dir='log')
     cfg = get_args(**Cfg)
-    os.environ["CUDA_VISIBLE_DEVICES"] = cfg.gpu
+    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Using device {device}')
 
-    if cfg.use_darknet_cfg:
-        model = Darknet(cfg.cfgfile)
-    else:
-        model = ArticYolo(cfg.pretrained, n_classes=cfg.classes)
+    model = ArticYolo(cfg.pretrained, n_classes=cfg.classes)
 
     if torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)

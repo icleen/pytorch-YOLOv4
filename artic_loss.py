@@ -2,7 +2,7 @@ from loss import *
 
 class Artic_loss(nn.Module):
     def __init__(self, n_classes=2, n_anchors=3, device=None, batch=2):
-        super(Yolo_loss, self).__init__()
+        super(Artic_loss, self).__init__()
         self.device = device
         self.strides = [8, 16, 32]
         image_size = 608
@@ -110,8 +110,10 @@ class Artic_loss(nn.Module):
         for output_id, output in enumerate(xin):
             batchsize = output.shape[0]
             fsize = output.shape[2]
-            n_ch = 5 + self.n_classes
+            preds = 10 # 4 for regular yolo
+            n_ch = (preds + 1 + self.n_classes)
 
+            import pdb; pdb.set_trace()
             output = output.view(batchsize, self.n_anchors, n_ch, fsize, fsize)
             output = output.permute(0, 1, 3, 4, 2)  # .contiguous()
 

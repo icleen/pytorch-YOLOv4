@@ -1,12 +1,13 @@
 from dataset import *
 
 class Artic_dataset(Dataset):
-    def __init__(self, lable_path, train=True):
+    def __init__(self, lable_path, config, train=True):
         super(Artic_dataset, self).__init__()
         self.train = train
 
         numitr = 0
         self.classnums = {}
+        self.w, self.h = config.width, config.height
 
         truth = {}
         f = open(lable_path, 'r', encoding='utf-8')
@@ -40,11 +41,11 @@ class Artic_dataset(Dataset):
         # img = cv2.imread(img_path)
         # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)self.truth.get(img_path)
         img = np.load(img_path, allow_pickle=True, encoding='bytes').item()
-        img = img['rgb']
+        img = cv2.resize(img['rgb'], (self.w, self.h), cv2.INTER_LINEAR)
 
         # boxes to coco format
         boxes[..., 2:-1:2] = boxes[..., 2:-1:2] - boxes[..., 0]
-        boxes[..., 3:-1:2] = boxes[..., 3:-1:2] - boxes[..., 0]
+        boxes[..., 3:-1:2] = boxes[..., 3:-1:2] - boxes[..., 1]
 
         return img, boxes
 
