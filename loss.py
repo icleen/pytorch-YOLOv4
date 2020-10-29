@@ -26,6 +26,8 @@ def bboxes_iou(bboxes_a, bboxes_b, xyxy=True, GIoU=False, DIoU=False, CIoU=False
     from: https://github.com/chainer/chainercv
     https://github.com/ultralytics/yolov3/blob/eca5b9c1d36e4f73bf2f94e141d864f1c2739e23/utils/utils.py#L262-L282
     """
+    print('change to work with shapes')
+    return
     if bboxes_a.shape[1] != 4 or bboxes_b.shape[1] != 4:
         raise IndexError
 
@@ -228,12 +230,17 @@ class Yolo_loss(nn.Module):
             target[..., np.r_[0:4, 5:n_ch]] *= tgt_mask
             target[..., 2:4] *= tgt_scale
 
-            loss_xy += F.binary_cross_entropy(input=output[..., :2], target=target[..., :2],
-                                              weight=tgt_scale * tgt_scale, reduction='sum')
-            loss_wh += F.mse_loss(input=output[..., 2:4], target=target[..., 2:4], reduction='sum') / 2
-            loss_obj += F.binary_cross_entropy(input=output[..., 4], target=target[..., 4], reduction='sum')
-            loss_cls += F.binary_cross_entropy(input=output[..., 5:], target=target[..., 5:], reduction='sum')
-            loss_l2 += F.mse_loss(input=output, target=target, reduction='sum')
+            loss_xy += F.binary_cross_entropy(
+              input=output[..., :2], target=target[..., :2],
+              weight=tgt_scale * tgt_scale, reduction='sum'
+            )
+            loss_wh += F.mse_loss( input=output[..., 2:4],
+              target=target[..., 2:4], reduction='sum' ) / 2
+            loss_obj += F.binary_cross_entropy(
+              input=output[..., 4], target=target[..., 4], reduction='sum' )
+            loss_cls += F.binary_cross_entropy(
+              input=output[..., 5:], target=target[..., 5:], reduction='sum' )
+            loss_l2 += F.mse_loss( input=output, target=target, reduction='sum' )
 
         loss = loss_xy + loss_wh + loss_obj + loss_cls
 

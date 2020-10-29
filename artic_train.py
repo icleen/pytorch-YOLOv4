@@ -33,7 +33,7 @@ from cfg import Cfg
 from artic_model import ArticYolo
 from tool.darknet2pytorch import Darknet
 
-from artic_loss import Artic_loss
+from artic_loss import Artic_loss, ArticRegionLoss
 from artic_evaluate import evaluate
 
 
@@ -113,6 +113,7 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
     criterion = Artic_loss( device=device, n_classes=config.classes,
       batch=config.batch // config.subdivisions
     )
+    # criterion = ArticRegionLoss(n_classes=config.classes)
     # scheduler = ReduceLROnPlateau(optimizer, mode='max', verbose=True, patience=6, min_lr=1e-7)
     # scheduler = CosineAnnealingWarmRestarts(optimizer, 0.001, 1e-6, 20)
 

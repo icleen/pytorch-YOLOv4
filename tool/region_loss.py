@@ -148,15 +148,10 @@ class RegionLoss(nn.Module):
         pred_boxes = convert2cpu(pred_boxes.transpose(0, 1).contiguous().view(-1, 4))
         t2 = time.time()
 
-        nGT, nCorrect, coord_mask, conf_mask, cls_mask, tx, ty, tw, th, tconf, tcls = build_targets(pred_boxes,
-                                                                                                    target.data,
-                                                                                                    self.anchors, nA,
-                                                                                                    nC, \
-                                                                                                    nH, nW,
-                                                                                                    self.noobject_scale,
-                                                                                                    self.object_scale,
-                                                                                                    self.thresh,
-                                                                                                    self.seen)
+        targets = build_targets( pred_boxes, target.data, self.anchors,
+          nA, nC, nH, nW, self.noobject_scale, self.object_scale,
+          self.thresh, self.seen )
+        nGT, nCorrect, coord_mask, conf_mask, cls_mask, tx, ty, tw, th, tconf, tcls = targets
         cls_mask = (cls_mask == 1)
         nProposals = int((conf > 0.25).sum().data[0])
 

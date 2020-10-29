@@ -346,8 +346,9 @@ class Yolo_dataset(Dataset):
             swidth = ow - pleft - pright
             sheight = oh - ptop - pbot
 
-            truth, min_w_h = fill_truth_detection(bboxes, self.cfg.boxes, self.cfg.classes, flip, pleft, ptop, swidth,
-                                                  sheight, self.cfg.w, self.cfg.h)
+            truth, min_w_h = fill_truth_detection( bboxes, self.cfg.boxes,
+              self.cfg.classes, flip, pleft, ptop, swidth, sheight,
+              self.cfg.w, self.cfg.h )
             if (min_w_h / 8) < blur and blur > 1:  # disable blur if one of the objects is too small
                 blur = min_w_h / 8
 
