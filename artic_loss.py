@@ -225,7 +225,7 @@ class ArticRegionLoss(nn.Module):
 
 class Artic_loss(nn.Module):
     def __init__( self, n_classes=2, n_anchors=3,
-      device=None, batch=2, image_size=480 ):
+      device=None, batch=2, image_size=(480, 480) ):
         super(Artic_loss, self).__init__()
         self.device = device
         self.strides = [8, 16, 32]
@@ -234,6 +234,7 @@ class Artic_loss(nn.Module):
         self.n_preds = 10 # 4 for regular yolo
         self.n_conf = self.n_preds + 1
         self.n_ch = (self.n_preds + 1 + self.n_classes)
+        self.height, self.width = image_size
 
         self.anchors = [[12, 16], [19, 36], [40, 28], [36, 75], [76, 55], [72, 146], [142, 110], [192, 243], [459, 401]]
         self.anch_masks = [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
@@ -248,15 +249,18 @@ class Artic_loss(nn.Module):
             ref_anchors[:, 2:] = np.array(all_anchors_grid, dtype=np.float32)
             ref_anchors = torch.from_numpy(ref_anchors)
             # calculate pred - xywh obj cls
-            fsize = image_size // self.strides[i]
-            grid_x = torch.arange(fsize, dtype=torch.float).repeat(
-              batch, 3, nW, 1 ).to(device)
-            grid_y = torch.arange(fsize, dtype=torch.float).repeat(
-              batch, 3, nH, 1 ).permute(0, 1, 3, 2).to(device)
-            anchor_w = torch.from_numpy(masked_anchors[:, 0]).repeat(
-              batch, nH, nW, 1 ).permute(0, 3, 1, 2).to(device).unsqueeze(-1)
-            anchor_h = torch.from_numpy(masked_anchors[:, 1]).repeat(
-              batch, nH, nW, 1 ).permute(0, 3, 1, 2).to(device).unsqueeze(-1)
+            nW = self.width // self.strides[i]
+            nH = self.height // self.strides[i]
+            grid_x = ( torch.arange(nW, dtype=torch.float)
+              .repeat( batch, 3, nW, 1 ).to(device) )
+            grid_y = ( torch.arange(nH, dtype=torch.float)
+              .repeat( batch, 3, nH, 1 ).permute(0, 1, 3, 2).to(device) )
+            anchor_w = ( torch.from_numpy(masked_anchors[:, 0])
+              .repeat( batch, nH, nW, 1 ).permute(0, 3, 1, 2)
+              .to(device).unsqueeze(-1) )
+            anchor_h = ( torch.from_numpy(masked_anchors[:, 1])
+              .repeat( batch, nH, nW, 1 ).permute(0, 3, 1, 2)
+              .to(device).unsqueeze(-1) )
 
             self.masked_anchors.append(masked_anchors)
             self.ref_anchors.append(ref_anchors)
