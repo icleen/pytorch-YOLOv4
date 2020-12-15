@@ -359,18 +359,15 @@ class Artic_loss(nn.Module):
 
         # labels = labels.cpu().data
         nlabel = (labels.sum(dim=2) > 0).sum(dim=1)  # number of objects
-        truth_xs_all = labels[..., 0:-1:2] / self.strides[output_id]
-        truth_ys_all = labels[..., 1:-1:2] / self.strides[output_id]
-        truth_i_all = truth_xs_all[..., 0].to(torch.int16).cpu().numpy()
-        truth_j_all = truth_ys_all[..., 0].to(torch.int16).cpu().numpy()
+        truth_labels = labels[..., 0:-1] / self.strides[output_id]
+        truth_i_all = truth_labels[..., 0].to(torch.int16).cpu().numpy()
+        truth_j_all = truth_labels[..., 1].to(torch.int16).cpu().numpy()
 
         for b in range(batchsize):
             n = int(nlabel[b])
             if n == 0:
                 continue
-            truth_box = torch.zeros(n, self.n_preds).to(self.device)
-            truth_box[:n, 0::2] = truth_xs_all[b, :n]
-            truth_box[:n, 1::2] = truth_ys_all[b, :n]
+            truth_box = truth_labels[b, :n]
             truth_i = truth_i_all[b, :n]
             truth_j = truth_j_all[b, :n]
 
