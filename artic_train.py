@@ -33,7 +33,7 @@ from cfg import Cfg
 from artic_model import ArticYolo
 from tool.darknet2pytorch import Darknet
 
-from artic_loss import Artic_loss, ArticRegionLoss
+from artic_loss import Artic_loss
 from artic_evaluate import evaluate
 
 

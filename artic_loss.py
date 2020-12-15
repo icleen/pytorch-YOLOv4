@@ -3,17 +3,17 @@ import time
 from loss import *
 
 
-def cross_iou(bboxes_a, bboxes_b, xyxy=True, GIoU=False, DIoU=False, CIoU=False):
+def cross_iou(bboxes_a, bboxes_b, maxdist=418, GIoU=False, DIoU=False, CIoU=False):
     """Calculate the Intersection of Unions (IoUs) between bounding boxes.
     IoU is calculated as a ratio of area of the intersection
     and area of the union.
 
     Args:
-        bbox_a (array): An array whose shape is :math:`(N, 4)`.
+        bbox_a (array): An array whose shape is :math:`(N, 10)`.
             :math:`N` is the number of bounding boxes.
             The dtype should be :obj:`numpy.float32`.
         bbox_b (array): An array similar to :obj:`bbox_a`,
-            whose shape is :math:`(K, 4)`.
+            whose shape is :math:`(K, 10)`.
             The dtype should be :obj:`numpy.float32`.
     Returns:
         array:
@@ -25,228 +25,11 @@ def cross_iou(bboxes_a, bboxes_b, xyxy=True, GIoU=False, DIoU=False, CIoU=False)
     from: https://github.com/chainer/chainercv
     https://github.com/ultralytics/yolov3/blob/eca5b9c1d36e4f73bf2f94e141d864f1c2739e23/utils/utils.py#L262-L282
     """
-    print('still implementing')
 
-    pass
-
-class ArticRegionLoss(nn.Module):
-    # n_classes=2, n_anchors=3,
-    #   device=None, batch=2, image_size=480
-    def __init__(self, n_classes=2, n_anchors=3):
-        super(ArticRegionLoss, self).__init__()
-        self.n_classes = n_classes
-        self.anchors = [[12, 16], [19, 36], [40, 28], [36, 75], [76, 55], [72, 146], [142, 110], [192, 243], [459, 401]]
-        self.n_anchors = n_anchors
-        self.n_preds = 10 # 4 for regular yolo
-        self.n_conf = self.n_preds + 1
-        self.n_ch = (self.n_preds + 1 + self.n_classes)
-        self.anchor_step = len(self.anchors) / self.n_anchors
-
-        self.coord_scale = 1
-        self.noobject_scale = 1
-        self.object_scale = 5
-        self.class_scale = 1
-        self.thresh = 0.6
-        self.seen = 0
-
-        self.masked_anchors, self.ref_anchors, self.grid_x, self.grid_y, self.anchor_w, self.anchor_h = [], [], [], [], [], []
-
-        for i in range(3):
-            all_anchors_grid = [(w / self.strides[i], h / self.strides[i]) for w, h in self.anchors]
-            masked_anchors = np.array([all_anchors_grid[j] for j in self.anch_masks[i]], dtype=np.float32)
-            ref_anchors = np.zeros((len(all_anchors_grid), 4), dtype=np.float32)
-            ref_anchors[:, 2:] = np.array(all_anchors_grid, dtype=np.float32)
-            ref_anchors = torch.from_numpy(ref_anchors)
-            # calculate pred - xywh obj cls
-            fsize = image_size // self.strides[i]
-            grid_x = torch.arange(nW, dtype=torch.float).repeat(
-              batch, 3, nH, 1 ).to(device)
-            grid_y = torch.arange(nH, dtype=torch.float).repeat(
-              batch, 3, nW, 1 ).permute(0, 1, 3, 2).to(device)
-            anchor_w = torch.from_numpy(masked_anchors[:, 0]).repeat(
-              batch, nH, nW, 1 ).permute(0, 3, 1, 2).to(device).unsqueeze(-1)
-            anchor_h = torch.from_numpy(masked_anchors[:, 1]).repeat(
-              batch, nH, nW, 1 ).permute(0, 3, 1, 2).to(device).unsqueeze(-1)
-
-            self.masked_anchors.append(masked_anchors)
-            self.ref_anchors.append(ref_anchors)
-            self.grid_x.append(grid_x)
-            self.grid_y.append(grid_y)
-            self.anchor_w.append(anchor_w)
-            self.anchor_h.append(anchor_h)
-
-    def forward(self, xin, target):
-        # output : BxAs*n_ch*H*W
-        # where n_ch = (n_preds+1+n_classes) (10+1+2)
-        loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2 = 0, 0, 0, 0, 0, 0
-        for output_id, output in enumerate(xin):
-            batchsize = output.shape[0]
-            nH = output.shape[2]
-            nW = output.shape[3]
-
-            output = output.view(batchsize, self.n_anchors, self.n_ch, nH, nW)
-            output = output.permute(0, 1, 3, 4, 2)  # .contiguous()
-            # output : Batch*Anchors*H*W*(preds + confidence + classes)
-
-            # sigmoid the x,y confidences classes
-            output[..., np.r_[:2, self.n_preds:self.n_ch]] = torch.sigmoid(
-              output[..., np.r_[:2, self.n_preds:self.n_ch]] )
-
-            pred = output[..., :self.n_preds].clone()
-            pred[..., 0] += self.grid_x[output_id]
-            pred[..., 1] += self.grid_y[output_id]
-            pred[..., 2::2] = torch.exp(pred[..., 2::2]) * self.anchor_w[output_id]
-            pred[..., 3::2] = torch.exp(pred[..., 3::2]) * self.anchor_h[output_id]
-
-            import pdb; pdb.set_trace()
-
-            targets = build_targets( pred_boxes, target.data, nH, nW )
-            nGT, nCorrect, coord_mask, conf_mask, cls_mask, tx, ty, tw, th, tconf, tcls = targets
-            cls_mask = (cls_mask == 1)
-            nProposals = int((conf > 0.25).sum().data[0])
-
-            tx = Variable(tx.cuda())
-            ty = Variable(ty.cuda())
-            tw = Variable(tw.cuda())
-            th = Variable(th.cuda())
-            tconf = Variable(tconf.cuda())
-            tcls = Variable(tcls.view(-1)[cls_mask].long().cuda())
-
-            coord_mask = Variable(coord_mask.cuda())
-            conf_mask = Variable(conf_mask.cuda().sqrt())
-            cls_mask = Variable(cls_mask.view(-1, 1).repeat(1, nC).cuda())
-            cls = cls[cls_mask].view(-1, nC)
-
-            t3 = time.time()
-
-            loss_x = self.coord_scale * nn.MSELoss(reduction='sum')(
-              x * coord_mask, tx * coord_mask ) / 2.0
-            loss_y = self.coord_scale * nn.MSELoss(reduction='sum')(
-              y * coord_mask, ty * coord_mask ) / 2.0
-            loss_w = self.coord_scale * nn.MSELoss(reduction='sum')(
-              w * coord_mask, tw * coord_mask ) / 2.0
-            loss_h = self.coord_scale * nn.MSELoss(reduction='sum')(
-              h * coord_mask, th * coord_mask ) / 2.0
-            loss_conf = nn.MSELoss(reduction='sum')(
-              conf * conf_mask, tconf * conf_mask ) / 2.0
-            loss_cls = self.class_scale * nn.CrossEntropyLoss(reduction='sum')(cls, tcls)
-            loss = loss_x + loss_y + loss_w + loss_h + loss_conf + loss_cls
-            t4 = time.time()
-            if False:
-                print('-----------------------------------')
-                print('        activation : %f' % (t1 - t0))
-                print(' create pred_boxes : %f' % (t2 - t1))
-                print('     build targets : %f' % (t3 - t2))
-                print('       create loss : %f' % (t4 - t3))
-                print('             total : %f' % (t4 - t0))
-            print(
-              '%d: nGT %d, recall %d, proposals %d, loss: x %f, y %f, w %f, h %f, conf %f, cls %f, total %f' % (
-              self.seen, nGT, nCorrect, nProposals, loss_x.data[0], loss_y.data[0],
-              loss_w.data[0], loss_h.data[0],loss_conf.data[0], loss_cls.data[0],
-              loss.data[0])
-            )
-        return loss
-
-    def build_targets(self, pred_boxes, target, nH, nW):
-        anchors = self.anchors
-        noobject_scale = self.noobject_scale
-        object_scale = self.object_scale
-        sil_thresh = self.thresh
-        seen = self.seen
-
-        nB = target.size(0)
-        nA = self.n_anchors
-        anchor_step = len(anchors) / n_anchors
-        conf_mask = torch.ones(nB, nA, nH, nW) * noobject_scale
-        coord_mask = torch.zeros(nB, nA, nH, nW)
-        cls_mask = torch.zeros(nB, nA, nH, nW)
-        tx = torch.zeros(nB, nA, nH, nW)
-        ty = torch.zeros(nB, nA, nH, nW)
-        tw = torch.zeros(nB, nA, nH, nW)
-        th = torch.zeros(nB, nA, nH, nW)
-        tconf = torch.zeros(nB, nA, nH, nW)
-        tcls = torch.zeros(nB, nA, nH, nW)
-
-        nAnchors = nA * nH * nW
-        nPixels = nH * nW
-        for b in range(nB):
-            cur_pred_boxes = pred_boxes[b * nAnchors:(b + 1) * nAnchors].t()
-            cur_ious = torch.zeros(nAnchors)
-            for t in range(50):
-                if target[b][t * 5 + 1] == 0:
-                    break
-                gx = target[b][t * 5 + 1] * nW
-                gy = target[b][t * 5 + 2] * nH
-                gw = target[b][t * 5 + 3] * nW
-                gh = target[b][t * 5 + 4] * nH
-                cur_gt_boxes = torch.FloatTensor([gx, gy, gw, gh]).repeat(nAnchors, 1).t()
-                cur_ious = torch.max(cur_ious, bbox_ious(cur_pred_boxes, cur_gt_boxes, x1y1x2y2=False))
-            conf_mask[b][cur_ious > sil_thresh] = 0
-        if seen < 12800:
-            if anchor_step == 4:
-                tx = torch.FloatTensor(anchors).view(nA, anchor_step).index_select(1, torch.LongTensor([2])).view(1, nA, 1,
-                                                                                                                  1).repeat(
-                    nB, 1, nH, nW)
-                ty = torch.FloatTensor(anchors).view(n_anchors, anchor_step).index_select(1, torch.LongTensor([2])).view(
-                    1, nA, 1, 1).repeat(nB, 1, nH, nW)
-            else:
-                tx.fill_(0.5)
-                ty.fill_(0.5)
-            tw.zero_()
-            th.zero_()
-            coord_mask.fill_(1)
-
-        nGT = 0
-        nCorrect = 0
-        for b in range(nB):
-            for t in range(50):
-                if target[b][t * 5 + 1] == 0:
-                    break
-                nGT = nGT + 1
-                best_iou = 0.0
-                best_n = -1
-                min_dist = 10000
-                gx = target[b][t * 5 + 1] * nW
-                gy = target[b][t * 5 + 2] * nH
-                gi = int(gx)
-                gj = int(gy)
-                gw = target[b][t * 5 + 3] * nW
-                gh = target[b][t * 5 + 4] * nH
-                gt_box = [0, 0, gw, gh]
-                for n in range(nA):
-                    aw = anchors[anchor_step * n]
-                    ah = anchors[anchor_step * n + 1]
-                    anchor_box = [0, 0, aw, ah]
-                    iou = bbox_iou(anchor_box, gt_box, x1y1x2y2=False)
-                    if anchor_step == 4:
-                        ax = anchors[anchor_step * n + 2]
-                        ay = anchors[anchor_step * n + 3]
-                        dist = pow(((gi + ax) - gx), 2) + pow(((gj + ay) - gy), 2)
-                    if iou > best_iou:
-                        best_iou = iou
-                        best_n = n
-                    elif anchor_step == 4 and iou == best_iou and dist < min_dist:
-                        best_iou = iou
-                        best_n = n
-                        min_dist = dist
-
-                gt_box = [gx, gy, gw, gh]
-                pred_box = pred_boxes[b * nAnchors + best_n * nPixels + gj * nW + gi]
-
-                coord_mask[b][best_n][gj][gi] = 1
-                cls_mask[b][best_n][gj][gi] = 1
-                conf_mask[b][best_n][gj][gi] = object_scale
-                tx[b][best_n][gj][gi] = target[b][t * 5 + 1] * nW - gi
-                ty[b][best_n][gj][gi] = target[b][t * 5 + 2] * nH - gj
-                tw[b][best_n][gj][gi] = math.log(gw / anchors[anchor_step * best_n])
-                th[b][best_n][gj][gi] = math.log(gh / anchors[anchor_step * best_n + 1])
-                iou = bbox_iou(gt_box, pred_box, x1y1x2y2=False)  # best_iou
-                tconf[b][best_n][gj][gi] = iou
-                tcls[b][best_n][gj][gi] = target[b][t * 5]
-                if iou > 0.5:
-                    nCorrect = nCorrect + 1
-
-        return nGT, nCorrect, coord_mask, conf_mask, cls_mask, tx, ty, tw, th, tconf, tcls
+    ious = torch.zeros((bboxes_a.shape[0], bboxes_b.shape[0]))
+    for bi, bbox in enumerate(bboxes_a):
+        ious[bi] = maxdist - torch.sqrt(torch.sum(torch.pow(bboxes_b - bbox, 2), 1))
+    return ious
 
 
 class Artic_loss(nn.Module):
@@ -261,26 +44,46 @@ class Artic_loss(nn.Module):
         self.n_conf = self.n_preds + 1
         self.n_ch = (self.n_preds + 1 + self.n_classes)
         self.height, self.width = image_size
+        self.maxdist = np.sqrt(self.height**2 + self.width**2)
 
-        self.anchors = [[12, 16], [19, 36], [40, 28], [36, 75], [76, 55], [72, 146], [142, 110], [192, 243], [459, 401]]
+        # self.anchors = [
+        #   [12, 16], [19, 36], [40, 28],
+        #   [36, 75], [76, 55], [72, 146],
+        #   [142, 110], [192, 243], [459, 401]
+        # ]
+        self.anchors = np.array([
+          [32.251082251082266, -54.502164502164504, -109.0909090909091, -139.44805194805195, -45.65062739411482, -60.24401349749069, 87.75510204081634, 16.790352504638232],
+          [-147.3214285714286, -127.2727272727273, 114.24047590585879, 19.613193846399632, 235.95779220779218, -8.40097402597403, 212.24911452184185, 73.34710743801655],
+          [-105.47309833024121, 77.17996289424863, -209.39060939060943, 31.26873126873128, 72.72727272727276, 152.1645021645022, 14.18181818181818, -45.298701298701296],
+          [104.67532467532469, -63.896103896103895, 74.79338842975207, -152.8925619834711, 58.05909835572687, -96.6583076677022, 213.73889268626115, -28.229665071770334],
+          [-38.6068476977568, -51.18063754427394, 46.51274651274653, 29.822029822029823, 147.52066115702476, -97.99291617473438, 34.84848484848486, 170.34632034632037],
+          [56.01731601731602, -157.5757575757576, -46.9155844155844, -97.72727272727273, 77.70562770562769, 36.14718614718617, -1.00851227011111e-14, 15.793883535819015],
+          [-166.52236652236655, -57.21500721500721, 44.99618029029792, -44.07944996180291, -79.03581822700318, 5.874452688822191, -122.72727272727269, 164.935064935065],
+          [6.161923183199777, 5.913235700469749, 132.6599326599327, -33.429533429533436, 174.6753246753247, 88.6936592818946, 146.01113172541747, -133.48794063079782],
+          [-206.67903525046384, -2.5974025974026023, -23.37662337662337, 64.93506493506496, -89.61038961038962, 168.1818181818182, 140.72356215213355, 133.95176252319112]
+        ], dtype=np.float32)
         self.anch_masks = [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
         self.ignore_thre = 0.5
 
-        self.masked_anchors, self.ref_anchors, self.grid_x, self.grid_y, self.anchor_w, self.anchor_h = [], [], [], [], [], []
+        self.masked_anchors, self.ref_anchors, self.grid_x = [], [], []
+        self.grid_y, self.anchor_w, self.anchor_h = [], [], []
 
-        for i in range(3):
-            all_anchors_grid = [(w / self.strides[i], h / self.strides[i]) for w, h in self.anchors]
-            masked_anchors = np.array([all_anchors_grid[j] for j in self.anch_masks[i]], dtype=np.float32)
-            ref_anchors = np.zeros((len(all_anchors_grid), 4), dtype=np.float32)
-            ref_anchors[:, 2:] = np.array(all_anchors_grid, dtype=np.float32)
+        for i in range(len(self.strides)):
+            all_anchors_grid = self.anchors / self.strides[i]
+            # all_anchors_grid = np.array([[val / self.strides[i] for val in anch]
+            #   for anch in self.anchors], dtype=np.float32)
+            masked_anchors = np.array([all_anchors_grid[j]
+              for j in self.anch_masks[i]], dtype=np.float32)
+            ref_anchors = np.zeros((len(all_anchors_grid), self.n_preds), dtype=np.float32)
+            ref_anchors[:, 2:] = all_anchors_grid
             ref_anchors = torch.from_numpy(ref_anchors)
             # calculate pred - xywh obj cls
             nW = self.width // self.strides[i]
             nH = self.height // self.strides[i]
             grid_x = ( torch.arange(nW, dtype=torch.float)
-              .repeat( batch, 3, nW, 1 ).to(device) )
+              .repeat( batch, n_anchors, nW, 1 ).to(device) )
             grid_y = ( torch.arange(nH, dtype=torch.float)
-              .repeat( batch, 3, nH, 1 ).permute(0, 1, 3, 2).to(device) )
+              .repeat( batch, n_anchors, nH, 1 ).permute(0, 1, 3, 2).to(device) )
             anchor_w = ( torch.from_numpy(masked_anchors[:, 0])
               .repeat( batch, nH, nW, 1 ).permute(0, 3, 1, 2)
               .to(device).unsqueeze(-1) )
@@ -360,6 +163,10 @@ class Artic_loss(nn.Module):
         # labels = labels.cpu().data
         nlabel = (labels.sum(dim=2) > 0).sum(dim=1)  # number of objects
         truth_labels = labels[..., 0:-1] / self.strides[output_id]
+        truth_w_all = torch.zeros( labels.shape[0], labels.shape[1], 1 )
+        truth_h_all = torch.zeros( labels.shape[0], labels.shape[1], 1 )
+        truth_w_all[..., 0] = ( labels[..., 2:-1:2].max(-1)[0] - labels[..., 2:-1:2].min(-1)[0] ) /self.strides[output_id]
+        truth_h_all[..., 0] = ( labels[..., 3:-1:2].max(-1)[0] - labels[..., 3:-1:2].min(-1)[0] ) /self.strides[output_id]
         truth_i_all = truth_labels[..., 0].to(torch.int16).cpu().numpy()
         truth_j_all = truth_labels[..., 1].to(torch.int16).cpu().numpy()
 
@@ -367,14 +174,16 @@ class Artic_loss(nn.Module):
             n = int(nlabel[b])
             if n == 0:
                 continue
-            truth_box = truth_labels[b, :n]
+            truth_box = torch.zeros(n, self.n_preds)
+            truth_box[:n, 2:] = truth_labels[b, :n, 2:]
             truth_i = truth_i_all[b, :n]
             truth_j = truth_j_all[b, :n]
 
             # calculate iou between truth and reference anchors
-            anchor_ious_all = cross_iou(truth_box.cpu(), self.ref_anchors[output_id], CIoU=True)
-
-            # temp = bbox_iou(truth_box.cpu(), self.ref_anchors[output_id])
+            anchor_ious_all = cross_iou(
+              truth_box,
+              self.ref_anchors[output_id],
+              maxdist=self.maxdist/self.strides[output_id] )
 
             best_n_all = anchor_ious_all.argmax(dim=1)
             best_n = best_n_all % 3
@@ -385,10 +194,13 @@ class Artic_loss(nn.Module):
             if sum(best_n_mask) == 0:
                 continue
 
-            truth_box[:n, 0] = truth_x_all[b, :n]
-            truth_box[:n, 1] = truth_y_all[b, :n]
+            truth_box[:n, :2] = truth_labels[b, :n, :2]
 
-            pred_ious = cross_iou(pred[b].view(-1, 4), truth_box, xyxy=False)
+            pred_ious = cross_iou(
+              pred[b].view(-1, self.n_preds),
+              truth_box.to(self.device),
+              maxdist=self.maxdist/self.strides[output_id] )
+
             pred_best_iou, _ = pred_ious.max(dim=1)
             pred_best_iou = (pred_best_iou > self.ignore_thre)
             pred_best_iou = pred_best_iou.view(pred[b].shape[:3])
@@ -401,13 +213,12 @@ class Artic_loss(nn.Module):
                     a = best_n[ti]
                     obj_mask[b, a, j, i] = 1
                     tgt_mask[b, a, j, i, :] = 1
-                    target[b, a, j, i, 0] = truth_x_all[b, ti] - truth_x_all[b, ti].to(torch.int16).to(torch.float)
-                    target[b, a, j, i, 1] = truth_y_all[b, ti] - truth_y_all[b, ti].to(torch.int16).to(torch.float)
-                    target[b, a, j, i, 2] = torch.log(
-                        truth_w_all[b, ti] / torch.Tensor(self.masked_anchors[output_id])[best_n[ti], 0] + 1e-16)
-                    target[b, a, j, i, 3] = torch.log(
-                        truth_h_all[b, ti] / torch.Tensor(self.masked_anchors[output_id])[best_n[ti], 1] + 1e-16)
-                    target[b, a, j, i, 4] = 1
-                    target[b, a, j, i, 5 + labels[b, ti, 4].to(torch.int16).cpu().numpy()] = 1
-                    tgt_scale[b, a, j, i, :] = torch.sqrt(2 - truth_w_all[b, ti] * truth_h_all[b, ti] / fsize / fsize)
+                    target[b, a, j, i, 0] = truth_labels[b, ti, 0] - truth_labels[b, ti, 0].to(torch.int16).to(torch.float)
+                    target[b, a, j, i, 1] = truth_labels[b, ti, 1] - truth_labels[b, ti, 1].to(torch.int16).to(torch.float)
+                    target[b, a, j, i, 2:self.n_preds] = torch.log(
+                        truth_labels[b, ti, 2:] / torch.Tensor(self.masked_anchors[output_id])[best_n[ti], 0] + 1e-16
+                    )
+                    target[b, a, j, i, self.n_preds] = 1
+                    target[b, a, j, i, self.n_conf + labels[b, ti, 4].to(torch.int16).cpu().numpy()] = 1
+                    tgt_scale[b, a, j, i, :] = torch.sqrt(2 - truth_w_all[b, ti] * truth_h_all[b, ti] / nH / nW)
         return obj_mask, tgt_mask, tgt_scale, target
