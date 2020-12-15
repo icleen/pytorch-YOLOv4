@@ -277,9 +277,9 @@ def get_args(**kwargs):
     parser.add_argument( '-classes', type=int, default=2,
       help='dataset classes' )
     parser.add_argument( '-train_label_path', dest='train_label', type=str,
-      default='data/artic_train.txt', help="training label path" )
+      default='/home/iain/data/asus_video/artic_train.txt', help="training label path" )
     parser.add_argument( '-val_label_path', dest='val_label', type=str,
-      default='data/artic_valid.txt', help="validation label path" )
+      default='/home/iain/data/asus_video/artic_valid.txt', help="validation label path" )
     parser.add_argument( '-optimizer', type=str, default='adam',
       help='training optimizer', dest='TRAIN_OPTIMIZER' )
     parser.add_argument( '-iou-type', type=str, default='iou',

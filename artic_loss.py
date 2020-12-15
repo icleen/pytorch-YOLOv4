@@ -3,6 +3,32 @@ import time
 from loss import *
 
 
+def cross_iou(bboxes_a, bboxes_b, xyxy=True, GIoU=False, DIoU=False, CIoU=False):
+    """Calculate the Intersection of Unions (IoUs) between bounding boxes.
+    IoU is calculated as a ratio of area of the intersection
+    and area of the union.
+
+    Args:
+        bbox_a (array): An array whose shape is :math:`(N, 4)`.
+            :math:`N` is the number of bounding boxes.
+            The dtype should be :obj:`numpy.float32`.
+        bbox_b (array): An array similar to :obj:`bbox_a`,
+            whose shape is :math:`(K, 4)`.
+            The dtype should be :obj:`numpy.float32`.
+    Returns:
+        array:
+        An array whose shape is :math:`(N, K)`. \
+        An element at index :math:`(n, k)` contains IoUs between \
+        :math:`n` th bounding box in :obj:`bbox_a` and :math:`k` th bounding \
+        box in :obj:`bbox_b`.
+
+    from: https://github.com/chainer/chainercv
+    https://github.com/ultralytics/yolov3/blob/eca5b9c1d36e4f73bf2f94e141d864f1c2739e23/utils/utils.py#L262-L282
+    """
+    print('still implementing')
+
+    pass
+
 class ArticRegionLoss(nn.Module):
     # n_classes=2, n_anchors=3,
     #   device=None, batch=2, image_size=480
@@ -274,13 +300,14 @@ class Artic_loss(nn.Module):
         loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2 = 0, 0, 0, 0, 0, 0
         for output_id, output in enumerate(xin):
             batchsize = output.shape[0]
-            fsize = output.shape[2]
+            nH = output.shape[2]
+            nW = output.shape[3]
 
-            output = output.view(batchsize, self.n_anchors, self.n_ch, fsize, fsize)
+            output = output.view(batchsize, self.n_anchors, self.n_ch, nH, nW)
             output = output.permute(0, 1, 3, 4, 2)  # .contiguous()
 
             """
-            output shape = ( batchsize, anchors, fsize, fsize,
+            output shape = ( batchsize, anchors, nH, nW,
               (preds + confidence + classes) )
             """
             # logistic activation for xy, obj, cls
@@ -332,24 +359,23 @@ class Artic_loss(nn.Module):
 
         # labels = labels.cpu().data
         nlabel = (labels.sum(dim=2) > 0).sum(dim=1)  # number of objects
-        truth_xs_all = labels[:, :, 0:-1:2] / self.strides[output_id]
-        truth_ys_all = labels[:, :, 1:-1:2] / self.strides[output_id]
-        truth_i_all = truth_x1_all.to(torch.int16).cpu().numpy()
-        truth_j_all = truth_y1_all.to(torch.int16).cpu().numpy()
+        truth_xs_all = labels[..., 0:-1:2] / self.strides[output_id]
+        truth_ys_all = labels[..., 1:-1:2] / self.strides[output_id]
+        truth_i_all = truth_xs_all[..., 0].to(torch.int16).cpu().numpy()
+        truth_j_all = truth_ys_all[..., 0].to(torch.int16).cpu().numpy()
 
         for b in range(batchsize):
             n = int(nlabel[b])
             if n == 0:
                 continue
             truth_box = torch.zeros(n, self.n_preds).to(self.device)
-            import pdb; pdb.set_trace()
-            truth_box[:n, 2:-1:2] = truth_xs_all[b, :n]
-            truth_box[:n, 3:-1:2] = truth_ys_all[b, :n]
+            truth_box[:n, 0::2] = truth_xs_all[b, :n]
+            truth_box[:n, 1::2] = truth_ys_all[b, :n]
             truth_i = truth_i_all[b, :n]
             truth_j = truth_j_all[b, :n]
 
             # calculate iou between truth and reference anchors
-            anchor_ious_all = bboxes_iou(truth_box.cpu(), self.ref_anchors[output_id], CIoU=True)
+            anchor_ious_all = cross_iou(truth_box.cpu(), self.ref_anchors[output_id], CIoU=True)
 
             # temp = bbox_iou(truth_box.cpu(), self.ref_anchors[output_id])
 
@@ -365,7 +391,7 @@ class Artic_loss(nn.Module):
             truth_box[:n, 0] = truth_x_all[b, :n]
             truth_box[:n, 1] = truth_y_all[b, :n]
 
-            pred_ious = bboxes_iou(pred[b].view(-1, 4), truth_box, xyxy=False)
+            pred_ious = cross_iou(pred[b].view(-1, 4), truth_box, xyxy=False)
             pred_best_iou, _ = pred_ious.max(dim=1)
             pred_best_iou = (pred_best_iou > self.ignore_thre)
             pred_best_iou = pred_best_iou.view(pred[b].shape[:3])
