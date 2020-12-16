@@ -210,7 +210,7 @@ class ArticHead(nn.Module):
             return [x2, x10, x18]
 
 class ArticYolo(nn.Module):
-    def __init__(self, yolov4conv137weight=None, n_classes=80, inference=False):
+    def __init__(self, yolov4conv137weight=None, n_classes=2, inference=False):
         super().__init__()
 
         # the number of predictions necessary + 1 for confidence prediction + the number of classes

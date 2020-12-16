@@ -48,6 +48,7 @@ class Artic_dataset(Dataset):
             img = img['rgb']
         except Exception as e:
             img = img[b'rgb']
+        oh, ow = img.shape[0], img.shape[1]
         img = cv2.resize(img, (self.w, self.h), cv2.INTER_LINEAR)
 
         # boxes to coco format
@@ -55,8 +56,8 @@ class Artic_dataset(Dataset):
             # print('shape1:', boxes.shape)
             # print('shape2:', boxes[..., 2:-1:2].shape)
             # print('shape3:', boxes[..., 0].shape)
-            boxes[..., 2:-1:2] = boxes[..., 2:-1:2] - boxes[..., 0:1]
-            boxes[..., 3:-1:2] = boxes[..., 3:-1:2] - boxes[..., 1:2]
+            boxes[..., 2:-1:2] = (boxes[..., 2:-1:2] - boxes[..., 0:1]) * self.w / ow
+            boxes[..., 3:-1:2] = (boxes[..., 3:-1:2] - boxes[..., 1:2]) * self.h / oh
         except Exception as e:
             print('still broken')
             raise

@@ -47,11 +47,11 @@ for (fil, root) in totals:
             save = False
             continue
         all_pts = np.array(pts)
-        temp = all_pts[1:]
+        temp = all_pts[:-1]
         dists = np.sqrt(np.power(temp, 2).sum(1))
         temp = temp[np.argsort(dists)]
-        sort_pts = pts[0] + temp.flatten().tolist()
-        temp = temp - all_pts[0]
+        sort_pts = temp.flatten().tolist() + pts[-1]
+        temp = temp - all_pts[-1]
         averages[cls].append(temp)
         line = line + ' ' + cls + ',' + ','.join([str(pt) for pt in sort_pts])
 
@@ -86,9 +86,9 @@ with open(osp.join(root_dir, 'artic_train.txt'), 'w') as f:
         f.write(line)
 
 with open(osp.join(root_dir, 'artic_valid.txt'), 'w') as f:
-    for line in train:
+    for line in valid:
         f.write(line)
 
 with open(osp.join(root_dir, 'artic_test.txt'), 'w') as f:
-    for line in train:
+    for line in test:
         f.write(line)

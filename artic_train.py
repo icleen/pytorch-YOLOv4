@@ -45,7 +45,7 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
     n_val = len(val_dataset)
 
     train_loader = DataLoader(train_dataset,
-      batch_size=config.batch // config.subdivisions, shuffle=True,
+      batch_size=config.batch // config.subdivisions, shuffle=False,
       num_workers=1, pin_memory=True, drop_last=True,
       collate_fn=train_dataset.collate
     )
@@ -124,6 +124,7 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
         # model.train()
         epoch_loss = 0
         epoch_step = 0
+        stopper = False
 
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img', ncols=50) as pbar:
             for i, batch in enumerate(train_loader):
@@ -135,6 +136,8 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
                 bboxes = bboxes.to(device=device)
 
                 bboxes_pred = model(images)
+                if stopper:
+                    import pdb; pdb.set_trace()
                 loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2 = criterion(bboxes_pred, bboxes)
                 # loss = loss / config.subdivisions
                 loss.backward()
@@ -142,6 +145,7 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
                 epoch_loss += loss.item()
 
                 if global_step % config.subdivisions == 0:
+                    stopper = True
                     optimizer.step()
                     scheduler.step()
                     model.zero_grad()
