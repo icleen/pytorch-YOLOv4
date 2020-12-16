@@ -2,14 +2,14 @@ import os.path as osp
 from dataset import *
 
 class Artic_dataset(Dataset):
-    def __init__(self, label_path, config, train=True):
+    def __init__(self, label_path, width, height, train=True):
         super(Artic_dataset, self).__init__()
         self.train = train
         self.root_path = '/'.join(label_path.split('/')[:-1])
 
         numitr = 0
         self.classnums = {}
-        self.w, self.h = config.width, config.height
+        self.w, self.h = width, height
 
         truth = {}
         f = open(label_path, 'r', encoding='utf-8')
@@ -44,11 +44,23 @@ class Artic_dataset(Dataset):
         # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)self.truth.get(img_path)
         img = np.load( osp.join(self.root_path, img_path),
           allow_pickle=True, encoding='bytes' ).item()
-        img = cv2.resize(img['rgb'], (self.w, self.h), cv2.INTER_LINEAR)
+        try:
+            img = img['rgb']
+        except Exception as e:
+            img = img[b'rgb']
+        img = cv2.resize(img, (self.w, self.h), cv2.INTER_LINEAR)
 
         # boxes to coco format
-        boxes[..., 2:-1:2] = boxes[..., 2:-1:2] - boxes[..., 0]
-        boxes[..., 3:-1:2] = boxes[..., 3:-1:2] - boxes[..., 1]
+        try:
+            # print('shape1:', boxes.shape)
+            # print('shape2:', boxes[..., 2:-1:2].shape)
+            # print('shape3:', boxes[..., 0].shape)
+            boxes[..., 2:-1:2] = boxes[..., 2:-1:2] - boxes[..., 0:1]
+            boxes[..., 3:-1:2] = boxes[..., 3:-1:2] - boxes[..., 1:2]
+        except Exception as e:
+            print('still broken')
+            raise
+
 
         return img, boxes
 
@@ -80,14 +92,18 @@ class Artic_dataset(Dataset):
 
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    train_dataset = Artic_dataset('data/artic_train.txt', train=True)
+    train_dataset = Artic_dataset(
+      '/home/iain/data/asus_video/artic_train.txt', 480, 480, train=True )
     inst = train_dataset[0]
-    # print(inst)
+    inst = train_dataset[1]
+    inst = train_dataset[2]
+    inst = train_dataset[3]
+    print(inst[1])
 
     print('data_loader:')
     from torch.utils.data import DataLoader
     train_loader = DataLoader(train_dataset,
-      batch_size=3, shuffle=True,
+      batch_size=3, shuffle=False,
       num_workers=1, pin_memory=True, drop_last=True,
       collate_fn=train_dataset.collate
     )
@@ -99,6 +115,5 @@ if __name__ == '__main__':
         bboxes = bboxes.to(device=device)
         nlabel = (bboxes.sum(dim=2) > 0).sum(dim=1)
         print(bboxes)
-        import pdb; pdb.set_trace()
         if ii == 0:
             break

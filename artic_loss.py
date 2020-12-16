@@ -126,7 +126,6 @@ class Artic_loss(nn.Module):
             obj_mask, tgt_mask, tgt_scale, target = self.build_target(
               pred, labels, batchsize, nH, nW, output_id )
 
-            import pdb; pdb.set_trace()
             # loss calculation
             output[..., self.n_preds] *= obj_mask
             output[..., np.r_[0:self.n_preds, self.n_conf:self.n_ch]] *= tgt_mask
@@ -138,7 +137,7 @@ class Artic_loss(nn.Module):
 
             loss_xy += F.binary_cross_entropy(
               input=output[..., :2], target=target[..., :2],
-              weight=tgt_scale * tgt_scale, reduction='sum'
+              weight=(tgt_scale * tgt_scale)[..., :2], reduction='sum'
             )
             loss_wh += F.mse_loss( input=output[..., 2:self.n_preds],
               target=target[..., 2:self.n_preds], reduction='sum' ) / 2
@@ -155,10 +154,10 @@ class Artic_loss(nn.Module):
     def build_target(self, pred, labels, batchsize, nH, nW, output_id):
         # target assignment
         tgt_mask = torch.zeros( batchsize, self.n_anchors, nH, nW,
-          self.n_preds + self.n_classes )
-        obj_mask = torch.ones( batchsize, self.n_anchors, nH, nW )
-        tgt_scale = torch.zeros( batchsize, self.n_anchors, nH, nW, 2)
-        target = torch.zeros( batchsize, self.n_anchors, nH, nW, self.n_ch )
+          self.n_preds + self.n_classes ).to(self.device)
+        obj_mask = torch.ones( batchsize, self.n_anchors, nH, nW ).to(self.device)
+        tgt_scale = torch.zeros( batchsize, self.n_anchors, nH, nW, self.n_preds-2).to(self.device)
+        target = torch.zeros( batchsize, self.n_anchors, nH, nW, self.n_ch ).to(self.device)
 
         # labels = labels.cpu().data
         nlabel = (labels.sum(dim=2) > 0).sum(dim=1)  # number of objects
@@ -174,14 +173,14 @@ class Artic_loss(nn.Module):
             n = int(nlabel[b])
             if n == 0:
                 continue
-            truth_box = torch.zeros(n, self.n_preds)
+            truth_box = torch.zeros(n, self.n_preds).to(self.device)
             truth_box[:n, 2:] = truth_labels[b, :n, 2:]
             truth_i = truth_i_all[b, :n]
             truth_j = truth_j_all[b, :n]
 
             # calculate iou between truth and reference anchors
             anchor_ious_all = cross_iou(
-              truth_box,
+              truth_box.cpu(),
               self.ref_anchors[output_id],
               maxdist=self.maxdist/self.strides[output_id] )
 
@@ -198,7 +197,7 @@ class Artic_loss(nn.Module):
 
             pred_ious = cross_iou(
               pred[b].view(-1, self.n_preds),
-              truth_box.to(self.device),
+              truth_box,
               maxdist=self.maxdist/self.strides[output_id] )
 
             pred_best_iou, _ = pred_ious.max(dim=1)
@@ -219,6 +218,6 @@ class Artic_loss(nn.Module):
                         truth_labels[b, ti, 2:] / torch.Tensor(self.masked_anchors[output_id])[best_n[ti], 0] + 1e-16
                     )
                     target[b, a, j, i, self.n_preds] = 1
-                    target[b, a, j, i, self.n_conf + labels[b, ti, 4].to(torch.int16).cpu().numpy()] = 1
+                    target[b, a, j, i, self.n_conf + labels[b, ti, self.n_preds].to(torch.int16).cpu().numpy()] = 1
                     tgt_scale[b, a, j, i, :] = torch.sqrt(2 - truth_w_all[b, ti] * truth_h_all[b, ti] / nH / nW)
         return obj_mask, tgt_mask, tgt_scale, target
