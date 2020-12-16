@@ -221,3 +221,14 @@ class Artic_loss(nn.Module):
                     target[b, a, j, i, self.n_conf + labels[b, ti, self.n_preds].to(torch.int16).cpu().numpy()] = 1
                     tgt_scale[b, a, j, i, :] = torch.sqrt(2 - truth_w_all[b, ti] * truth_h_all[b, ti] / nH / nW)
         return obj_mask, tgt_mask, tgt_scale, target
+
+
+
+class ArticRegressLoss(nn.Module):
+    def __init__( self, n_classes=2, n_anchors=3,
+      device=None, batch=2, image_size=(480, 480) ):
+        super(ArticRegressLoss, self).__init__()
+
+
+    def forward(self, input):
+        pass

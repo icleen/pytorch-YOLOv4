@@ -209,8 +209,54 @@ class ArticHead(nn.Module):
         else:
             return [x2, x10, x18]
 
+class ArticRegress(nn.Module):
+    def __init__(self, output_ch, n_classes, inference=False):
+        super().__init__()
+        self.inference = inference
+
+        self.conv1 = Conv_Bn_Activation(128, 256, 3, 1, 'leaky')
+        self.conv2 = Conv_Bn_Activation(256, 128, 1, 1, 'linear', bn=False, bias=True)
+        self.conv3 = Conv_Bn_Activation(128, 256, 3, 2, 'leaky')
+
+        self.conv4 = Conv_Bn_Activation(256, 256, 1, 1, 'leaky')
+        self.conv5 = Conv_Bn_Activation(256, 512, 3, 1, 'leaky')
+        self.conv6 = Conv_Bn_Activation(512, 256, 1, 1, 'leaky')
+        self.conv7 = Conv_Bn_Activation(256, 512, 3, 2, 'leaky')
+
+        self.conv8 = Conv_Bn_Activation(512, 512, 1, 1, 'leaky')
+        self.conv9 = Conv_Bn_Activation(512, 1024, 3, 1, 'leaky')
+        self.conv10 = Conv_Bn_Activation(1024, 512, 1, 1, 'leaky')
+        self.conv11 = Conv_Bn_Activation(512, 1024, 3, 1, 'leaky')
+        self.conv12 = Conv_Bn_Activation(1024, output_ch, 1, 1, 'linear', bn=False, bias=True)
+
+        self.regress = RegressLayer(n_classes)
+
+
+    def forward(self, input, _, _):
+        x1 = self.conv1(input)
+        x2 = self.conv2(x1)
+        x3 = self.conv3(x2)
+        x4 = self.conv4(x3)
+        x5 = self.conv5(x4)
+        x6 = self.conv6(x5)
+        x7 = self.conv7(x6)
+        x8 = self.conv8(x7)
+        x9 = self.conv9(x8)
+        x0 = self.conv10(x9)
+        x11 = self.conv11(x10)
+        x12 = self.conv12(x11)
+
+        if self.inference:
+            reg = self.regress(x2)
+
+            return get_region_boxes(reg)
+
+        else:
+            return x12
+
+
 class ArticYolo(nn.Module):
-    def __init__(self, yolov4conv137weight=None, n_classes=2, inference=False):
+    def __init__(self, yolov4conv137weight=None, n_classes=2, inference=False, flatregress=True):
         super().__init__()
 
         # the number of predictions necessary + 1 for confidence prediction + the number of classes
@@ -243,7 +289,10 @@ class ArticYolo(nn.Module):
             _model.load_state_dict(model_dict)
 
         # head
-        self.head = ArticHead(output_ch, n_classes, inference)
+        if flatregress:
+            self.head = ArticRegress(output_ch, n_classes, inference)
+        else:
+            self.head = ArticHead(output_ch, n_classes, inference)
 
 
     def forward(self, input):
