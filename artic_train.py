@@ -111,7 +111,7 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, burnin_schedule)
 
     criterion = Artic_loss( device=device, n_classes=config.classes,
-      batch=config.batch // config.subdivisions
+      batch=config.batch // config.subdivisions, n_anchors=config.n_anchors
     )
     # criterion = ArticRegionLoss(n_classes=config.classes)
     # scheduler = ReduceLROnPlateau(optimizer, mode='max', verbose=True, patience=6, min_lr=1e-7)
@@ -124,7 +124,6 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
         # model.train()
         epoch_loss = 0
         epoch_step = 0
-        stopper = False
 
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img', ncols=50) as pbar:
             for i, batch in enumerate(train_loader):
@@ -135,9 +134,8 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
                 images = images.to(device=device, dtype=torch.float32)
                 bboxes = bboxes.to(device=device)
 
+                torch.autograd.set_detect_anomaly(True)
                 bboxes_pred = model(images)
-                if stopper:
-                    import pdb; pdb.set_trace()
                 loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2 = criterion(bboxes_pred, bboxes)
                 # loss = loss / config.subdivisions
                 loss.backward()
@@ -145,7 +143,6 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
                 epoch_loss += loss.item()
 
                 if global_step % config.subdivisions == 0:
-                    stopper = True
                     optimizer.step()
                     scheduler.step()
                     model.zero_grad()
@@ -306,7 +303,7 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Using device {device}')
 
-    model = ArticYolo(cfg.pretrained, n_classes=cfg.classes)
+    model = ArticYolo(cfg.pretrained, n_classes=cfg.classes, n_anchors=cfg.n_anchors)
 
     if torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)

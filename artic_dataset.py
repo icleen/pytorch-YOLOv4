@@ -56,11 +56,16 @@ class Artic_dataset(Dataset):
             # print('shape1:', boxes.shape)
             # print('shape2:', boxes[..., 2:-1:2].shape)
             # print('shape3:', boxes[..., 0].shape)
-            boxes[..., 2:-1:2] = (boxes[..., 2:-1:2] - boxes[..., 0:1]) * self.w / ow
-            boxes[..., 3:-1:2] = (boxes[..., 3:-1:2] - boxes[..., 1:2]) * self.h / oh
+            boxes[..., 2:-1:2] = (boxes[..., 2:-1:2] - boxes[..., 0:1])
+            boxes[..., 3:-1:2] = (boxes[..., 3:-1:2] - boxes[..., 1:2])
         except Exception as e:
             print('still broken')
             raise
+
+        boxes[..., 0:-1:2] /= ow
+        boxes[..., 1:-1:2] /= oh
+        boxes[..., 0] *= self.w
+        boxes[..., 1] *= self.h
 
 
         return img, boxes

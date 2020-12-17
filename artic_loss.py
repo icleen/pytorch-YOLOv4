@@ -62,7 +62,8 @@ class Artic_loss(nn.Module):
           [-52.83996115441124, -62.40326281976513, -0.5038743278147152, -88.14292368088361, 98.15033451397083, -19.047619047619058, 138.17866027993273, 69.7428743471972],
           [-111.29870129870133, 69.6103896103896, -32.00916730328496, -25.668449197860962, 55.62770562770559, 134.41558441558445, 84.35064935064932, 52.98701298701299]
         ], dtype=np.float32)
-        self.anch_masks = [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
+        # self.anch_masks = [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
+        self.anch_masks = [[0], [0], [0]]
         self.ignore_thre = 0.5
 
         self.masked_anchors, self.ref_anchors, self.grid_x = [], [], []
@@ -99,7 +100,130 @@ class Artic_loss(nn.Module):
             self.anchor_h.append(anchor_h)
 
 
-    def forward(self, xin, labels=None):
+    # def forward(self, xin, labels=None):
+    #     loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2 = 0, 0, 0, 0, 0, 0
+    #     for output_id, output in enumerate(xin):
+    #         batchsize = output.shape[0]
+    #         nH = output.shape[2]
+    #         nW = output.shape[3]
+    #
+    #         output = output.view(batchsize, self.n_anchors, self.n_ch, nH, nW)
+    #         output = output.permute(0, 1, 3, 4, 2)  # .contiguous()
+    #
+    #         """
+    #         output shape = ( batchsize, anchors, nH, nW,
+    #           (preds + confidence + classes) )
+    #         """
+    #         # logistic activation for xy, obj, cls
+    #         output[..., np.r_[:2, self.n_preds:self.n_ch]] = torch.sigmoid(
+    #           output[..., np.r_[:2, self.n_preds:self.n_ch]] )
+    #
+    #         pred = output[..., :self.n_preds].clone()
+    #         pred[..., 0] += self.grid_x[output_id]
+    #         pred[..., 1] += self.grid_y[output_id]
+    #         pred[..., 2::2] = torch.exp(pred[..., 2::2]) * self.anchor_w[output_id]
+    #         pred[..., 3::2] = torch.exp(pred[..., 3::2]) * self.anchor_h[output_id]
+    #
+    #         obj_mask, tgt_mask, tgt_scale, target = self.build_target(
+    #           pred, labels, batchsize, nH, nW, output_id )
+    #
+    #         # loss calculation
+    #         output[..., self.n_preds] *= obj_mask
+    #         output[..., np.r_[0:self.n_preds, self.n_conf:self.n_ch]] *= tgt_mask
+    #         output[..., 2:self.n_preds] *= tgt_scale
+    #
+    #         target[..., self.n_preds] *= obj_mask
+    #         target[..., np.r_[0:self.n_preds, self.n_conf:self.n_ch]] *= tgt_mask
+    #         target[..., 2:self.n_preds] *= tgt_scale
+    #
+    #         loss_xy += F.binary_cross_entropy(
+    #           input=output[..., :2], target=target[..., :2],
+    #           weight=(tgt_scale * tgt_scale)[..., :2], reduction='sum'
+    #         )
+    #         loss_wh += F.mse_loss( input=output[..., 2:self.n_preds],
+    #           target=target[..., 2:self.n_preds], reduction='sum' ) / (self.n_preds-2)
+    #         loss_obj += F.binary_cross_entropy( input=output[..., self.n_preds],
+    #           target=target[..., self.n_preds], reduction='sum' )
+    #         loss_cls += F.binary_cross_entropy( input=output[..., self.n_conf:],
+    #           target=target[..., self.n_conf:], reduction='sum' )
+    #         loss_l2 += F.mse_loss(input=output, target=target, reduction='sum')
+    #
+    #     loss = loss_xy + loss_wh + loss_obj + loss_cls
+    #
+    #     return loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2
+    #
+    # def build_target(self, pred, labels, batchsize, nH, nW, output_id):
+    #     # target assignment
+    #     tgt_mask = torch.zeros( batchsize, self.n_anchors, nH, nW,
+    #       self.n_preds + self.n_classes ).to(self.device)
+    #     obj_mask = torch.ones( batchsize, self.n_anchors, nH, nW ).to(self.device)
+    #     tgt_scale = torch.zeros( batchsize, self.n_anchors, nH, nW, self.n_preds-2).to(self.device)
+    #     target = torch.zeros( batchsize, self.n_anchors, nH, nW, self.n_ch ).to(self.device)
+    #
+    #     # labels = labels.cpu().data
+    #     nlabel = (labels.sum(dim=2) > 0).sum(dim=1)  # number of objects
+    #     truth_labels = labels[..., 0:-1] / self.strides[output_id]
+    #     truth_w_all = torch.zeros( labels.shape[0], labels.shape[1], 1 )
+    #     truth_h_all = torch.zeros( labels.shape[0], labels.shape[1], 1 )
+    #     truth_w_all[..., 0] = ( labels[..., 2:-1:2].max(-1)[0] - labels[..., 2:-1:2].min(-1)[0] ) /self.strides[output_id]
+    #     truth_h_all[..., 0] = ( labels[..., 3:-1:2].max(-1)[0] - labels[..., 3:-1:2].min(-1)[0] ) /self.strides[output_id]
+    #     truth_i_all = truth_labels[..., 0].to(torch.int16).cpu().numpy()
+    #     truth_j_all = truth_labels[..., 1].to(torch.int16).cpu().numpy()
+    #
+    #     for b in range(batchsize):
+    #         n = int(nlabel[b])
+    #         if n == 0:
+    #             continue
+    #         truth_box = torch.zeros(n, self.n_preds).to(self.device)
+    #         truth_box[:n, 2:] = truth_labels[b, :n, 2:]
+    #         truth_i = truth_i_all[b, :n]
+    #         truth_j = truth_j_all[b, :n]
+    #
+    #         # calculate iou between truth and reference anchors
+    #         anchor_ious_all = cross_iou(
+    #           truth_box.cpu(),
+    #           self.ref_anchors[output_id],
+    #           maxdist=self.maxdist/self.strides[output_id] )
+    #
+    #         best_n_all = anchor_ious_all.argmax(dim=1)
+    #         best_n = best_n_all % 3
+    #         best_n_mask = ( (best_n_all == self.anch_masks[output_id][0]) |
+    #                         (best_n_all == self.anch_masks[output_id][1]) |
+    #                         (best_n_all == self.anch_masks[output_id][2]) )
+    #
+    #         if sum(best_n_mask) == 0:
+    #             continue
+    #
+    #         truth_box[:n, :2] = truth_labels[b, :n, :2]
+    #
+    #         pred_ious = cross_iou(
+    #           pred[b].view(-1, self.n_preds),
+    #           truth_box,
+    #           maxdist=self.maxdist/self.strides[output_id] )
+    #
+    #         pred_best_iou, _ = pred_ious.max(dim=1)
+    #         pred_best_iou = (pred_best_iou > self.ignore_thre)
+    #         pred_best_iou = pred_best_iou.view(pred[b].shape[:3])
+    #         # set mask to zero (ignore) if pred matches truth
+    #         obj_mask[b] = ~ pred_best_iou
+    #
+    #         for ti in range(best_n.shape[0]):
+    #             if best_n_mask[ti] == 1:
+    #                 i, j = truth_i[ti], truth_j[ti]
+    #                 a = best_n[ti]
+    #                 obj_mask[b, a, j, i] = 1
+    #                 tgt_mask[b, a, j, i, :] = 1
+    #                 target[b, a, j, i, 0] = truth_labels[b, ti, 0] - truth_labels[b, ti, 0].to(torch.int16).to(torch.float)
+    #                 target[b, a, j, i, 1] = truth_labels[b, ti, 1] - truth_labels[b, ti, 1].to(torch.int16).to(torch.float)
+    #                 target[b, a, j, i, 2:self.n_preds] = torch.log(
+    #                     truth_labels[b, ti, 2:] / torch.Tensor(self.masked_anchors[output_id])[best_n[ti], 0] + 1e-16
+    #                 )
+    #                 target[b, a, j, i, self.n_preds] = 1
+    #                 target[b, a, j, i, self.n_conf + labels[b, ti, self.n_preds].to(torch.int16).cpu().numpy()] = 1
+    #                 tgt_scale[b, a, j, i, :] = torch.sqrt(2 - truth_w_all[b, ti] * truth_h_all[b, ti] / nH / nW)
+    #     return obj_mask, tgt_mask, tgt_scale, target
+
+    def forward(self, xin, labels):
         loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2 = 0, 0, 0, 0, 0, 0
         for output_id, output in enumerate(xin):
             batchsize = output.shape[0]
@@ -116,36 +240,34 @@ class Artic_loss(nn.Module):
             # logistic activation for xy, obj, cls
             output[..., np.r_[:2, self.n_preds:self.n_ch]] = torch.sigmoid(
               output[..., np.r_[:2, self.n_preds:self.n_ch]] )
+            # output = torch.sigmoid( output )
 
-            pred = output[..., :self.n_preds].clone()
-            pred[..., 0] += self.grid_x[output_id]
-            pred[..., 1] += self.grid_y[output_id]
-            pred[..., 2::2] = torch.exp(pred[..., 2::2]) * self.anchor_w[output_id]
-            pred[..., 3::2] = torch.exp(pred[..., 3::2]) * self.anchor_h[output_id]
+            # pred = output[..., :self.n_preds].clone()
+            # pred[..., 0] += self.grid_x[output_id]
+            # pred[..., 1] += self.grid_y[output_id]
+            # pred[..., 2::2] = torch.exp(pred[..., 2::2]) * self.anchor_w[output_id]
+            # pred[..., 3::2] = torch.exp(pred[..., 3::2]) * self.anchor_h[output_id]
 
-            obj_mask, tgt_mask, tgt_scale, target = self.build_target(
-              pred, labels, batchsize, nH, nW, output_id )
+            obj_mask, tgt_mask, target = self.build_target(
+              None, labels, batchsize, nH, nW, output_id )
 
             # loss calculation
             output[..., self.n_preds] *= obj_mask
             output[..., np.r_[0:self.n_preds, self.n_conf:self.n_ch]] *= tgt_mask
-            output[..., 2:self.n_preds] *= tgt_scale
 
             target[..., self.n_preds] *= obj_mask
             target[..., np.r_[0:self.n_preds, self.n_conf:self.n_ch]] *= tgt_mask
-            target[..., 2:self.n_preds] *= tgt_scale
 
-            loss_xy += F.binary_cross_entropy(
-              input=output[..., :2], target=target[..., :2],
-              weight=(tgt_scale * tgt_scale)[..., :2], reduction='sum'
-            )
-            loss_wh += F.mse_loss( input=output[..., 2:self.n_preds],
-              target=target[..., 2:self.n_preds], reduction='sum' ) / (self.n_preds-2)
-            loss_obj += F.binary_cross_entropy( input=output[..., self.n_preds],
-              target=target[..., self.n_preds], reduction='sum' )
+            # loss_xy += F.binary_cross_entropy(
+            #   input=output[..., :2], target=target[..., :2], reduction='sum'
+            # )
+            # loss_wh += F.mse_loss( input=output[..., 2:self.n_preds],
+            #   target=target[..., 2:self.n_preds], reduction='sum' ) / (self.n_preds-2)
+            # loss_obj += F.binary_cross_entropy( input=output[..., self.n_preds],
+            #   target=target[..., self.n_preds], reduction='sum' )
             loss_cls += F.binary_cross_entropy( input=output[..., self.n_conf:],
               target=target[..., self.n_conf:], reduction='sum' )
-            loss_l2 += F.mse_loss(input=output, target=target, reduction='sum')
+            # loss_l2 += F.mse_loss(input=output, target=target, reduction='sum')
 
         loss = loss_xy + loss_wh + loss_obj + loss_cls
 
@@ -153,71 +275,58 @@ class Artic_loss(nn.Module):
 
     def build_target(self, pred, labels, batchsize, nH, nW, output_id):
         # target assignment
+        obj_mask = torch.ones( batchsize, self.n_anchors, nH, nW
+          ).to(self.device)
         tgt_mask = torch.zeros( batchsize, self.n_anchors, nH, nW,
           self.n_preds + self.n_classes ).to(self.device)
-        obj_mask = torch.ones( batchsize, self.n_anchors, nH, nW ).to(self.device)
-        tgt_scale = torch.zeros( batchsize, self.n_anchors, nH, nW, self.n_preds-2).to(self.device)
-        target = torch.zeros( batchsize, self.n_anchors, nH, nW, self.n_ch ).to(self.device)
+        target = torch.zeros( batchsize, self.n_anchors, nH, nW,
+          self.n_ch ).to(self.device)
 
         # labels = labels.cpu().data
         nlabel = (labels.sum(dim=2) > 0).sum(dim=1)  # number of objects
-        truth_labels = labels[..., 0:-1] / self.strides[output_id]
-        truth_w_all = torch.zeros( labels.shape[0], labels.shape[1], 1 )
-        truth_h_all = torch.zeros( labels.shape[0], labels.shape[1], 1 )
-        truth_w_all[..., 0] = ( labels[..., 2:-1:2].max(-1)[0] - labels[..., 2:-1:2].min(-1)[0] ) /self.strides[output_id]
-        truth_h_all[..., 0] = ( labels[..., 3:-1:2].max(-1)[0] - labels[..., 3:-1:2].min(-1)[0] ) /self.strides[output_id]
-        truth_i_all = truth_labels[..., 0].to(torch.int16).cpu().numpy()
-        truth_j_all = truth_labels[..., 1].to(torch.int16).cpu().numpy()
-
+        truth_labels = labels[..., :2] / self.strides[output_id]
+        truth_ij = truth_labels.to(torch.int16)
+        truth_diff = truth_labels - truth_ij
+        truth_i_all = truth_ij[..., 0].cpu().numpy()
+        truth_j_all = truth_ij[..., 1].cpu().numpy()
+        classes = labels[..., -1].long()
         for b in range(batchsize):
-            n = int(nlabel[b])
-            if n == 0:
-                continue
-            truth_box = torch.zeros(n, self.n_preds).to(self.device)
-            truth_box[:n, 2:] = truth_labels[b, :n, 2:]
-            truth_i = truth_i_all[b, :n]
-            truth_j = truth_j_all[b, :n]
+            obj_mask[b, :, truth_j_all[b], truth_i_all[b]] = 0
+            tgt_mask[b, :, truth_j_all[b], truth_i_all[b], :] += 1
+            target[b, :, truth_j_all[b], truth_i_all[b], :2] += truth_diff[b]
+            target[b, :, truth_j_all[b], truth_i_all[b], 2:self.n_preds] += labels[b, :, 2:-1]
+            target[b, :, truth_j_all[b], truth_i_all[b], self.n_preds] = 1
+            target[b, :, truth_j_all[b], truth_i_all[b], self.n_conf + classes[b, :]] = 1
 
-            # calculate iou between truth and reference anchors
-            anchor_ious_all = cross_iou(
-              truth_box.cpu(),
-              self.ref_anchors[output_id],
-              maxdist=self.maxdist/self.strides[output_id] )
+        return obj_mask, tgt_mask, target
 
-            best_n_all = anchor_ious_all.argmax(dim=1)
-            best_n = best_n_all % 3
-            best_n_mask = ( (best_n_all == self.anch_masks[output_id][0]) |
-                            (best_n_all == self.anch_masks[output_id][1]) |
-                            (best_n_all == self.anch_masks[output_id][2]) )
 
-            if sum(best_n_mask) == 0:
-                continue
+def toy():
+    batch_size = 2
+    nW, nH = 3, 3
 
-            truth_box[:n, :2] = truth_labels[b, :n, :2]
+    target = torch.zeros(batch_size, 2, nW, nH, 5)
+    truth_i_all = np.array([[2, 0], [1, 2]])
+    truth_j_all = np.array([[0, 2], [1, 1]])
+    # truth_diff = torch.from_numpy(np.array([[[0.16, 0.6], [0.77, 0.32]], [[0.77, 0.32], [0.16, 0.6]]]))
+    labels = torch.from_numpy(np.random.random((batch_size, 2, 5)))
+    truth_diff = labels[..., :2]
 
-            pred_ious = cross_iou(
-              pred[b].view(-1, self.n_preds),
-              truth_box,
-              maxdist=self.maxdist/self.strides[output_id] )
+    truth = torch.zeros(batch_size, 1, nW, nH, 5)
+    truth[0, 0, 0, 2, :] += labels[0, 0]
+    truth[0, 0, 2, 0, :] += labels[0, 1]
+    truth[1, 0, 1, 1, :] += labels[1, 0]
+    truth[1, 0, 1, 2, :] += labels[1, 1]
+    # for b in range(batch_size):
+    #     for
 
-            pred_best_iou, _ = pred_ious.max(dim=1)
-            pred_best_iou = (pred_best_iou > self.ignore_thre)
-            pred_best_iou = pred_best_iou.view(pred[b].shape[:3])
-            # set mask to zero (ignore) if pred matches truth
-            obj_mask[b] = ~ pred_best_iou
+    for b in range(batch_size):
+        target[b, :, truth_j_all[b], truth_i_all[b], :2] += truth_diff[b]
+        target[b, :, truth_j_all[b], truth_i_all[b], 2:5] += labels[b, :, 2:]
+        # target[b, :, truth_j_all[b], truth_i_all[b], self.n_conf + classes[b, :]] = 1
 
-            for ti in range(best_n.shape[0]):
-                if best_n_mask[ti] == 1:
-                    i, j = truth_i[ti], truth_j[ti]
-                    a = best_n[ti]
-                    obj_mask[b, a, j, i] = 1
-                    tgt_mask[b, a, j, i, :] = 1
-                    target[b, a, j, i, 0] = truth_labels[b, ti, 0] - truth_labels[b, ti, 0].to(torch.int16).to(torch.float)
-                    target[b, a, j, i, 1] = truth_labels[b, ti, 1] - truth_labels[b, ti, 1].to(torch.int16).to(torch.float)
-                    target[b, a, j, i, 2:self.n_preds] = torch.log(
-                        truth_labels[b, ti, 2:] / torch.Tensor(self.masked_anchors[output_id])[best_n[ti], 0] + 1e-16
-                    )
-                    target[b, a, j, i, self.n_preds] = 1
-                    target[b, a, j, i, self.n_conf + labels[b, ti, self.n_preds].to(torch.int16).cpu().numpy()] = 1
-                    tgt_scale[b, a, j, i, :] = torch.sqrt(2 - truth_w_all[b, ti] * truth_h_all[b, ti] / nH / nW)
-        return obj_mask, tgt_mask, tgt_scale, target
+    print('target:', target[0,0])
+    print('truth:', truth[0,0])
+
+if __name__ == '__main__':
+    toy()

@@ -210,12 +210,12 @@ class ArticHead(nn.Module):
             return [x2, x10, x18]
 
 class ArticYolo(nn.Module):
-    def __init__(self, yolov4conv137weight=None, n_classes=2, inference=False):
+    def __init__(self, yolov4conv137weight=None, n_classes=2, n_anchors=3, inference=False):
         super().__init__()
 
         # the number of predictions necessary + 1 for confidence prediction + the number of classes
         preds = 10 # 4 for regular yolo
-        output_ch = (preds + 1 + n_classes) * 3
+        output_ch = (preds + 1 + n_classes) * n_anchors
 
         # backbone
         self.down1 = DownSample1()

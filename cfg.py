@@ -26,6 +26,7 @@ Cfg.subdivisions = 4
 Cfg.width = 480
 Cfg.height = 480
 Cfg.channels = 3
+Cfg.n_anchors = 1
 Cfg.momentum = 0.949
 Cfg.decay = 0.0005
 Cfg.angle = 0
@@ -58,8 +59,8 @@ Cfg.train_label = os.path.join(_BASE_DIR, 'data', 'train.txt')
 Cfg.val_label = os.path.join(_BASE_DIR, 'data' ,'val.txt')
 Cfg.TRAIN_OPTIMIZER = 'adam'
 '''
-image_path1 x1,y1,x2,y2,x3,y3,x4,y4,x5,y5,id x1,y1,x2,y2,x3,y3,x4,y4,x5,y5,id ...
-image_path2 x1,y1,x2,y2,x3,y3,x4,y4,x5,y5,id x1,y1,x2,y2,x3,y3,x4,y4,x5,y5,id ...
+image_path1 id,xc,yc,x1,y1,x2,y2,x3,y3,x4,y4 id,xc,yc,x1,y1,x2,y2,x3,y3,x4,y4 ...
+image_path2 id,xc,yc,x1,y1,x2,y2,x3,y3,x4,y4 id,xc,yc,x1,y1,x2,y2,x3,y3,x4,y4 ...
 ...
 '''
 
