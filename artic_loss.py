@@ -291,12 +291,15 @@ class Artic_loss(nn.Module):
         truth_j_all = truth_ij[..., 1].cpu().numpy()
         classes = labels[..., -1].long()
         for b in range(batchsize):
-            obj_mask[b, :, truth_j_all[b], truth_i_all[b]] = 0
-            tgt_mask[b, :, truth_j_all[b], truth_i_all[b], :] += 1
-            target[b, :, truth_j_all[b], truth_i_all[b], :2] += truth_diff[b]
-            target[b, :, truth_j_all[b], truth_i_all[b], 2:self.n_preds] += labels[b, :, 2:-1]
-            target[b, :, truth_j_all[b], truth_i_all[b], self.n_preds] = 1
-            target[b, :, truth_j_all[b], truth_i_all[b], self.n_conf + classes[b, :]] = 1
+            nl = nlabel[b]
+            truth_j = truth_j_all[b, :nl]
+            truth_i = truth_i_all[b, :nl]
+            obj_mask[b, :, truth_j, truth_i] = 0
+            tgt_mask[b, :, truth_j, truth_i, :] += 1
+            target[b, :, truth_j, truth_i, :2] += truth_diff[b, :nl]
+            target[b, :, truth_j, truth_i, 2:self.n_preds] += labels[b, :nl, 2:-1]
+            target[b, :, truth_j, truth_i, self.n_preds] = 1
+            target[b, :, truth_j, truth_i, self.n_conf + classes[b, :nl]] = 1
 
         return obj_mask, tgt_mask, target
 

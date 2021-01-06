@@ -146,7 +146,6 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
                     optimizer.step()
                     scheduler.step()
                     model.zero_grad()
-                    print('step')
 
                 if global_step % (log_step * config.subdivisions) == 0:
                     writer.add_scalar('train/Loss', loss.item(), global_step)
