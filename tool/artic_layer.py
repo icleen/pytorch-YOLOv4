@@ -171,25 +171,34 @@ def artic_forward_dynamic( output, conf_thresh, num_classes,
 
     output = output.view(batchsize, num_anchors, n_ch, nH, nW)
     output = output.permute(0, 1, 3, 4, 2)  # .contiguous()
-    # Shape: [batch, num_anchors, 2, H, W]
-    bxy = output[:, :, :2]
-    # Shape: [batch, num_anchors, 8, H, W]
-    bwh = output[:, :, 2:n_preds]
+
+    # Confidences
     det_confs = output[:, :, confi:clsi]
     # Shape: [batch, num_anchors * H * W]
     det_confs = det_confs.view(det_confs.shape[0], -1)
+    det_confs = torch.sigmoid(det_confs)
+    # det_confs: [batch, num_anchors * H * W]
+    det_confs = det_confs.unsqueeze(-1)
+
     cls_confs = output[:, :, clsi:]
     # Shape: [batch, num_anchors, num_classes, H * W]
     cls_confs = cls_confs.view(cls_confs.shape[0], num_anchors, num_classes, -1)
     # Shape: [batch, num_anchors * H * W, num_classes]
     cls_confs = cls_confs.permute(0, 1, 3, 2).reshape(output.size(0), -1, num_classes)
+    cls_confs = torch.sigmoid(cls_confs)
+
+    # confs: [batch, num_anchors * H * W, num_classes]
+    confs = cls_confs * det_confs
+
+    # Shape: [batch, num_anchors, 2, H, W]
+    bxy = output[:, :, :2]
+    # Shape: [batch, num_anchors, 8, H, W]
+    bwh = output[:, :, 2:n_preds]
 
     # Apply sigmoid(), exp() and softmax() to slices
-    #
     bxy = torch.sigmoid(bxy) * scale_x_y - 0.5 * (scale_x_y - 1)
     bwh = torch.exp(bwh)
-    det_confs = torch.sigmoid(det_confs)
-    cls_confs = torch.sigmoid(cls_confs)
+
 
     # Prepare C-x, C-y, P-w, P-h (None of them are torch related)
     grid_x = np.expand_dims(np.expand_dims(np.expand_dims(np.linspace(0, output.size(3) - 1, output.size(3)), axis=0).repeat(output.size(2), 0), axis=0), axis=0)
@@ -268,16 +277,8 @@ def artic_forward_dynamic( output, conf_thresh, num_classes,
     boxes = torch.cat((bx1, by1, bx2, by2), dim=2).view(output.size(0), num_anchors * output.size(2) * output.size(3), 1, 4)
     # boxes = boxes.repeat(1, 1, num_classes, 1)
 
-    # boxes:     [batch, num_anchors * H * W, 1, 4]
-    # cls_confs: [batch, num_anchors * H * W, num_classes]
-    # det_confs: [batch, num_anchors * H * W]
-
-    det_confs = det_confs.view(output.size(0), num_anchors * output.size(2) * output.size(3), 1)
-    confs = cls_confs * det_confs
-
     # boxes: [batch, num_anchors * H * W, 1, 4]
     # confs: [batch, num_anchors * H * W, num_classes]
-
     return  boxes, confs
 
 class ArticLayer(nn.Module):
