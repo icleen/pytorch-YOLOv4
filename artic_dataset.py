@@ -2,7 +2,7 @@ import os.path as osp
 from dataset import *
 
 class Artic_dataset(Dataset):
-    def __init__(self, label_path, width, height, train=True):
+    def __init__(self, label_path, width, height, maxboxes=5, train=True):
         super(Artic_dataset, self).__init__()
         self.train = train
         self.root_path = '/'.join(label_path.split('/')[:-1])
@@ -10,6 +10,7 @@ class Artic_dataset(Dataset):
         numitr = 0
         self.classnums = {}
         self.w, self.h = width, height
+        self.maxboxes = maxboxes
 
         truth = {}
         f = open(label_path, 'r', encoding='utf-8')
@@ -67,8 +68,10 @@ class Artic_dataset(Dataset):
         boxes[..., 0] *= self.w
         boxes[..., 1] *= self.h
 
-
-        return img, boxes
+        outboxes = np.zeros((self.maxboxes, boxes.shape[1]))
+        minboxes = min(boxes.shape[0], self.maxboxes)
+        outboxes[:minboxes] = boxes[:minboxes]
+        return img, outboxes
 
         # target['boxes'] = torch.as_tensor(boxes, dtype=torch.float32)
         # target['labels'] = torch.as_tensor(bboxes_with_cls_id[...,-1].flatten(), dtype=torch.int64)
@@ -96,20 +99,25 @@ class Artic_dataset(Dataset):
         return images, bboxes
 
 
+def test_collate(inst1, inst2):
+    bboxes = [inst1[1], inst2[1]]
+    bboxes = np.concatenate(bboxes, axis=0)
+    bboxes = torch.from_numpy(bboxes)
+
+
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     train_dataset = Artic_dataset(
       '/home/iain/data/asus_video/artic_train.txt', 480, 480, train=True )
     inst = train_dataset[0]
-    inst = train_dataset[1]
-    inst = train_dataset[2]
-    inst = train_dataset[3]
+    # print(inst[1])
+    inst = train_dataset[29]
     print(inst[1])
 
     print('data_loader:')
     from torch.utils.data import DataLoader
-    train_loader = DataLoader(train_dataset,
-      batch_size=3, shuffle=False,
+    train_loader = DataLoader(
+      train_dataset, batch_size=2, shuffle=False,
       num_workers=1, pin_memory=True, drop_last=True,
       collate_fn=train_dataset.collate
     )
@@ -120,6 +128,8 @@ if __name__ == '__main__':
         bboxes = batch[1]
         bboxes = bboxes.to(device=device)
         nlabel = (bboxes.sum(dim=2) > 0).sum(dim=1)
-        print(bboxes)
-        if ii == 0:
-            break
+        if ii % 3 == 0 and ii < 50:
+            print(ii, bboxes.shape)
+        # if ii == 50:
+        #     break
+        #     import pdb; pdb.set_trace()

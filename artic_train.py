@@ -38,8 +38,8 @@ from artic_evaluate import evaluate
 
 
 def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=20, img_scale=0.5):
-    train_dataset = Artic_dataset(config.train_label, config.width, config.height, train=True)
-    val_dataset = Artic_dataset(config.val_label, config.width, config.height, train=False)
+    train_dataset = Artic_dataset(config.train_label, config.width, config.height, config.maxboxes, train=True)
+    val_dataset = Artic_dataset(config.val_label, config.width, config.height, config.maxboxes, train=False)
 
     n_train = len(train_dataset)
     n_val = len(val_dataset)
@@ -146,6 +146,7 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
                     optimizer.step()
                     scheduler.step()
                     model.zero_grad()
+                    print('step')
 
                 if global_step % (log_step * config.subdivisions) == 0:
                     writer.add_scalar('train/Loss', loss.item(), global_step)
