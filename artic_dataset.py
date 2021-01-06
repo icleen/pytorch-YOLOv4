@@ -81,8 +81,8 @@ class Artic_dataset(Dataset):
         # return img, target
 
     def collate(self, batch):
-        if not self.train:
-            return tuple(zip(*batch))
+        # if not self.train:
+        #     return tuple(zip(*batch))
 
         # print('batch:', len(batch))
         images = []

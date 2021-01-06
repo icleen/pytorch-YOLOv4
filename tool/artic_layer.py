@@ -145,8 +145,8 @@ def yolo_forward(output, conf_thresh, num_classes, anchors,
     return  boxes, confs
 
 
-def artic_forward_dynamic( output, conf_thresh, num_classes, anchors,
-  num_anchors, scale_x_y, only_objectness=1, validation=False ):
+def artic_forward_dynamic( output, conf_thresh, num_classes,
+  anchors, num_anchors, scale_x_y, only_objectness=1, validation=False ):
     # Output would be invalid if it does not satisfy this assert
     # assert (output.size(1) == (5 + num_classes) * num_anchors)
 
@@ -160,37 +160,29 @@ def artic_forward_dynamic( output, conf_thresh, num_classes, anchors,
     # H = output.size(2)
     # W = output.size(3)
 
-    bxy_list = []
-    bwh_list = []
-    det_confs_list = []
-    cls_confs_list = []
-    import pdb; pdb.set_trace()
+    n_preds = 10 # 4 for regular yolo
+    confi = n_preds
+    clsi = n_preds + 1
+    n_ch = (n_preds + 1 + num_classes)
 
-    for i in range(num_anchors):
-        begin = i * (5 + num_classes)
-        end = (i + 1) * (5 + num_classes)
+    batchsize = output.shape[0]
+    nH = output.shape[2]
+    nW = output.shape[3]
 
-        bxy_list.append(output[:, begin : begin + 2])
-        bwh_list.append(output[:, begin + 2 : begin + 4])
-        det_confs_list.append(output[:, begin + 4 : begin + 5])
-        cls_confs_list.append(output[:, begin + 5 : end])
-
-    # Shape: [batch, num_anchors * 2, H, W]
-    bxy = torch.cat(bxy_list, dim=1)
-    # Shape: [batch, num_anchors * 2, H, W]
-    bwh = torch.cat(bwh_list, dim=1)
-
-    # Shape: [batch, num_anchors, H, W]
-    det_confs = torch.cat(det_confs_list, dim=1)
+    output = output.view(batchsize, num_anchors, n_ch, nH, nW)
+    output = output.permute(0, 1, 3, 4, 2)  # .contiguous()
+    # Shape: [batch, num_anchors, 2, H, W]
+    bxy = output[:, :, :2]
+    # Shape: [batch, num_anchors, 8, H, W]
+    bwh = output[:, :, 2:n_preds]
+    det_confs = output[:, :, confi:clsi]
     # Shape: [batch, num_anchors * H * W]
-    det_confs = det_confs.view(output.size(0), num_anchors * output.size(2) * output.size(3))
-
-    # Shape: [batch, num_anchors * num_classes, H, W]
-    cls_confs = torch.cat(cls_confs_list, dim=1)
+    det_confs = det_confs.view(det_confs.shape[0], -1)
+    cls_confs = output[:, :, clsi:]
     # Shape: [batch, num_anchors, num_classes, H * W]
-    cls_confs = cls_confs.view(output.size(0), num_anchors, num_classes, output.size(2) * output.size(3))
-    # Shape: [batch, num_anchors, num_classes, H * W] --> [batch, num_anchors * H * W, num_classes]
-    cls_confs = cls_confs.permute(0, 1, 3, 2).reshape(output.size(0), num_anchors * output.size(2) * output.size(3), num_classes)
+    cls_confs = cls_confs.view(cls_confs.shape[0], num_anchors, num_classes, -1)
+    # Shape: [batch, num_anchors * H * W, num_classes]
+    cls_confs = cls_confs.permute(0, 1, 3, 2).reshape(output.size(0), -1, num_classes)
 
     # Apply sigmoid(), exp() and softmax() to slices
     #
@@ -319,4 +311,4 @@ class ArticLayer(nn.Module):
             masked_anchors += self.anchors[m * self.anchor_step:(m + 1) * self.anchor_step]
         masked_anchors = [anchor / self.stride for anchor in masked_anchors]
 
-        return artic_forward_dynamic(output, self.thresh, self.num_classes, masked_anchors, len(self.anchor_mask),scale_x_y=self.scale_x_y)
+        return artic_forward_dynamic(output, self.thresh, self.num_classes, masked_anchors, 1, scale_x_y=self.scale_x_y)

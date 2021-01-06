@@ -1,76 +1,113 @@
 
 import time
-import os, sys, math
+import os, sys, math, argparse
 
 import cv2
 import numpy as np
 import torch
 import torch.nn as nn
+from easydict import EasyDict as edict
 
-from tool.tv_reference.coco_utils import convert_to_coco_api
-from tool.tv_reference.coco_eval import CocoEvaluator
+from cfg import Cfg
 
 
 @torch.no_grad()
 def evaluate(model, data_loader, cfg, device, logger=None, **kwargs):
-    """ finished, tested
     """
-    # cpu_device = torch.device("cpu")
-    model.eval()
-    # header = 'Test:'
+    evaluator:
+      model
+      data_loader
+      config
+      device
+      logger
+      kwargs
+    """
 
-    coco = convert_to_coco_api(data_loader.dataset, bbox_fmt='coco')
-    coco_evaluator = CocoEvaluator(coco, iou_types = ["bbox"], bbox_fmt='coco')
 
     for images, targets in data_loader:
-        model_input = [[cv2.resize(img, (cfg.w, cfg.h))] for img in images]
-        model_input = np.concatenate(model_input, axis=0)
-        model_input = model_input.transpose(0, 3, 1, 2)
-        model_input = torch.from_numpy(model_input).div(255.0)
-        model_input = model_input.to(device)
-        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+
+        images = images.to(device=device, dtype=torch.float32)
+        # targets = targets.to(device=device)
 
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         model_time = time.time()
-        outputs = model(model_input)
 
+        outputs = model(images, inference=True)
         # outputs = [{k: v.to(cpu_device) for k, v in t.items()} for t in outputs]
         model_time = time.time() - model_time
+        import pdb; pdb.set_trace()
 
-        # outputs = outputs.cpu().detach().numpy()
-        res = {}
-        # for img, target, output in zip(images, targets, outputs):
-        for img, target, boxes, confs in zip(images, targets, outputs[0], outputs[1]):
-            img_height, img_width = img.shape[:2]
-            # boxes = output[...,:4].copy()  # output boxes in yolo format
-            boxes = boxes.squeeze(2).cpu().detach().numpy()
-            boxes[...,2:] = boxes[...,2:] - boxes[...,:2] # Transform [x1, y1, x2, y2] to [x1, y1, w, h]
-            boxes[...,0] = boxes[...,0]*img_width
-            boxes[...,1] = boxes[...,1]*img_height
-            boxes[...,2] = boxes[...,2]*img_width
-            boxes[...,3] = boxes[...,3]*img_height
-            boxes = torch.as_tensor(boxes, dtype=torch.float32)
-            # confs = output[...,4:].copy()
-            confs = confs.cpu().detach().numpy()
-            labels = np.argmax(confs, axis=1).flatten()
-            labels = torch.as_tensor(labels, dtype=torch.int64)
-            scores = np.max(confs, axis=1).flatten()
-            scores = torch.as_tensor(scores, dtype=torch.float32)
-            res[target["image_id"].item()] = {
-                "boxes": boxes,
-                "scores": scores,
-                "labels": labels,
-            }
-        evaluator_time = time.time()
-        coco_evaluator.update(res)
-        evaluator_time = time.time() - evaluator_time
 
-    # gather the stats from all processes
-    coco_evaluator.synchronize_between_processes()
 
-    # accumulate predictions from all images
-    coco_evaluator.accumulate()
-    coco_evaluator.summarize()
+def get_args(**kwargs):
+    cfg = kwargs
+    parser = argparse.ArgumentParser(
+      description='Train the Model on images and target masks',
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter )
+    parser.add_argument( '-b', '--batch-size', metavar='B', type=int,
+      nargs='?', default=8, help='Batch size', dest='batchsize' )
+    parser.add_argument( '-l', '--learning-rate', metavar='LR', type=float,
+      nargs='?', default=0.001, help='Learning rate', dest='learning_rate' )
+    parser.add_argument( '-f', '--load', dest='load', type=str, default=None,
+      help='Load model from a .pth file' )
+    parser.add_argument( '-g', '--gpu', metavar='G', type=str, default='-1',
+      help='GPU', dest='gpu' )
+    parser.add_argument( '-dir', '--data-dir', type=str, default=None,
+      help='dataset dir', dest='dataset_dir' )
+    parser.add_argument( '-pretrained', type=str, default=None,
+      help='pretrained yolov4.conv.137' )
+    parser.add_argument( '-classes', type=int, default=2,
+      help='dataset classes' )
+    parser.add_argument( '-train_label_path', dest='train_label', type=str,
+      default='/home/iain/data/asus_video/artic_train.txt', help="training label path" )
+    parser.add_argument( '-val_label_path', dest='val_label', type=str,
+      default='/home/iain/data/asus_video/artic_valid.txt', help="validation label path" )
+    parser.add_argument( '-optimizer', type=str, default='adam',
+      help='training optimizer', dest='TRAIN_OPTIMIZER' )
+    parser.add_argument( '-iou-type', type=str, default='iou',
+      help='iou type (iou, giou, diou, ciou)', dest='iou_type')
+    parser.add_argument( '-keep-checkpoint-max', type=int, default=10,
+      help='maximum number of checkpoints to keep. If set 0, all checkpoints will be kept',
+      dest='keep_checkpoint_max' )
+    args = vars(parser.parse_args())
 
-    return coco_evaluator
+    # for k in args.keys():
+    #     cfg[k] = args.get(k)
+    cfg.update(args)
+
+    return edict(cfg)
+
+
+if __name__ == "__main__":
+
+    from torch.utils.data import DataLoader
+    from artic_dataset import Artic_dataset
+    from artic_model import ArticYolo
+
+    config = get_args(**Cfg)
+    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    val_dataset = Artic_dataset( config.val_label,
+      config.width, config.height, config.maxboxes, train=False )
+    val_loader = DataLoader(val_dataset,
+      batch_size=config.batch // config.subdivisions, shuffle=True,
+      num_workers=8, pin_memory=True, drop_last=True,
+      collate_fn=val_dataset.collate
+    )
+
+    model = ArticYolo(
+      config.pretrained, n_classes=config.classes, n_anchors=config.n_anchors )
+    if torch.cuda.device_count() > 1:
+        model = torch.nn.DataParallel(model)
+    model.to(device=device)
+    model.eval()
+
+    try:
+        evaluate(model, val_loader, config, device)
+    except KeyboardInterrupt:
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)

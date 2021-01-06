@@ -29,9 +29,8 @@ class DownSample5(nn.Module):
         return x5
 
 class ArticNeck(nn.Module):
-    def __init__(self, inference=False):
+    def __init__(self):
         super().__init__()
-        self.inference = inference
 
         self.conv1 = Conv_Bn_Activation(512, 256, 1, 1, 'leaky')
         self.conv2 = Conv_Bn_Activation(256, 512, 3, 1, 'leaky')
@@ -87,7 +86,7 @@ class ArticNeck(nn.Module):
         # x7 = self.conv7(x6)
         x7 = self.conv7(x5)
         # UP
-        up = self.upsample1(x7, downsample4.size(), self.inference)
+        up = self.upsample1(x7, downsample4.size(), inference)
         # R 85
         x8 = self.conv8(downsample4)
         # R -1 -3
@@ -102,7 +101,7 @@ class ArticNeck(nn.Module):
         x14 = self.conv14(x13)
 
         # UP
-        up = self.upsample2(x14, downsample3.size(), self.inference)
+        up = self.upsample2(x14, downsample3.size(), inference)
         # R 54
         x15 = self.conv15(downsample3)
         # R -1 -3
@@ -117,9 +116,8 @@ class ArticNeck(nn.Module):
         return x20, x13, x5
 
 class ArticHead(nn.Module):
-    def __init__(self, output_ch, n_classes, inference=False):
+    def __init__(self, output_ch, n_classes):
         super().__init__()
-        self.inference = inference
 
         self.conv1 = Conv_Bn_Activation(128, 256, 3, 1, 'leaky')
         self.conv2 = Conv_Bn_Activation(256, output_ch, 1, 1, 'linear', bn=False, bias=True)
@@ -169,7 +167,7 @@ class ArticHead(nn.Module):
           num_anchors=9, stride=32
         )
 
-    def forward(self, input1, input2, input3):
+    def forward(self, input1, input2, input3, inference=False):
         x1 = self.conv1(input1)
         x2 = self.conv2(x1)
 
@@ -199,7 +197,7 @@ class ArticHead(nn.Module):
         x17 = self.conv17(x16)
         x18 = self.conv18(x17)
 
-        if self.inference:
+        if inference:
             y1 = self.yolo1(x2)
             y2 = self.yolo2(x10)
             y3 = self.yolo3(x18)
@@ -210,7 +208,7 @@ class ArticHead(nn.Module):
             return [x2, x10, x18]
 
 class ArticYolo(nn.Module):
-    def __init__(self, yolov4conv137weight=None, n_classes=2, n_anchors=3, inference=False):
+    def __init__(self, yolov4conv137weight=None, n_classes=2, n_anchors=3):
         super().__init__()
 
         # the number of predictions necessary + 1 for confidence prediction + the number of classes
@@ -224,7 +222,7 @@ class ArticYolo(nn.Module):
         self.down4 = DownSample4()
         self.down5 = DownSample5()
         # neck
-        self.neck = ArticNeck(inference)
+        self.neck = ArticNeck()
         # yolov4conv137
         if yolov4conv137weight:
             _model = nn.Sequential(
@@ -243,17 +241,17 @@ class ArticYolo(nn.Module):
             _model.load_state_dict(model_dict)
 
         # head
-        self.head = ArticHead(output_ch, n_classes, inference)
+        self.head = ArticHead(output_ch, n_classes)
 
 
-    def forward(self, input):
+    def forward(self, input, inference=False):
         d1 = self.down1(input)
         d2 = self.down2(d1)
         d3 = self.down3(d2)
         d4 = self.down4(d3)
         d5 = self.down5(d4)
 
-        x20, x13, x6 = self.neck(d5, d4, d3)
+        x20, x13, x6 = self.neck(d5, d4, d3, inference)
 
-        output = self.head(x20, x13, x6)
+        output = self.head(x20, x13, x6, inference)
         return output

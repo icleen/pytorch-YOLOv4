@@ -38,8 +38,10 @@ from artic_evaluate import evaluate
 
 
 def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=20, img_scale=0.5):
-    train_dataset = Artic_dataset(config.train_label, config.width, config.height, config.maxboxes, train=True)
-    val_dataset = Artic_dataset(config.val_label, config.width, config.height, config.maxboxes, train=False)
+    train_dataset = Artic_dataset( config.train_label,
+      config.width, config.height, config.maxboxes, train=True )
+    val_dataset = Artic_dataset( config.val_label,
+      config.width, config.height, config.maxboxes, train=False )
 
     n_train = len(train_dataset)
     n_val = len(val_dataset)
@@ -171,16 +173,9 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
 
                 pbar.update(images.shape[0])
 
-            eval_model = ArticYolo(
-              cfg.pretrained, n_classes=cfg.classes, inference=True )
-            # eval_model = Yolov4(yolov4conv137weight=None, n_classes=config.classes, inference=True)
-            if torch.cuda.device_count() > 1:
-                eval_model.load_state_dict(model.module.state_dict())
-            else:
-                eval_model.load_state_dict(model.state_dict())
-            eval_model.to(device)
-            evaluator = evaluate(eval_model, val_loader, config, device)
-            del eval_model
+            model.eval()
+            evaluator = evaluate(model, val_loader, config, device)
+            model.train()
 
             stats = evaluator.coco_eval['bbox'].stats
             writer.add_scalar('train/AP', stats[0], global_step)
