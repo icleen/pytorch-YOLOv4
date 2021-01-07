@@ -117,7 +117,7 @@ class Artic_loss(nn.Module):
             # logistic activation for xy, obj, cls
             output[..., np.r_[:2, self.n_preds:self.n_ch]] = torch.sigmoid(
               output[..., np.r_[:2, self.n_preds:self.n_ch]] )
-            # output = torch.sigmoid( output )
+            output[..., 2:self.n_preds] = torch.tanh( output[..., 2:self.n_preds] )
 
             # pred = output[..., :self.n_preds].clone()
             # pred[..., 0] += self.grid_x[output_id]
